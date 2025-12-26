@@ -16,6 +16,13 @@ type Config struct {
 	WebSocket WebSocketConfig
 	Audio     AudioConfig
 	CORS      CORSConfig
+	AI        AIConfig
+}
+
+// AIConfig AI 서버 설정
+type AIConfig struct {
+	ServerAddr string
+	Enabled    bool
 }
 
 // ServerConfig HTTP 서버 설정
@@ -78,6 +85,10 @@ func Load() *Config {
 			AllowOrigins: getEnv("CORS_ALLOW_ORIGINS", "*"),
 			AllowHeaders: getEnv("CORS_ALLOW_HEADERS", "Origin, Content-Type, Accept"),
 		},
+		AI: AIConfig{
+			ServerAddr: getEnv("AI_SERVER_ADDR", "localhost:50051"),
+			Enabled:    getBool("AI_ENABLED", false),
+		},
 	}
 }
 
@@ -95,6 +106,14 @@ func getInt(key string, defaultValue int) int {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
 		}
+	}
+	return defaultValue
+}
+
+// getBool 불리언 환경 변수 조회
+func getBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		return value == "true" || value == "1" || value == "yes"
 	}
 	return defaultValue
 }

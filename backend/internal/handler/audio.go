@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/gofiber/contrib/websocket"
 
+	"realtime-backend/internal/ai"
 	"realtime-backend/internal/config"
 	"realtime-backend/internal/model"
 	"realtime-backend/internal/session"
@@ -15,12 +17,36 @@ import (
 
 // AudioHandler 오디오 WebSocket 핸들러
 type AudioHandler struct {
-	cfg *config.Config
+	cfg      *config.Config
+	aiClient *ai.GrpcClient
 }
 
 // NewAudioHandler AudioHandler 생성자
 func NewAudioHandler(cfg *config.Config) *AudioHandler {
-	return &AudioHandler{cfg: cfg}
+	handler := &AudioHandler{cfg: cfg}
+
+	// AI 서버 연결 (활성화된 경우)
+	if cfg.AI.Enabled {
+		client, err := ai.NewGrpcClient(cfg.AI.ServerAddr)
+		if err != nil {
+			log.Printf("⚠️ Failed to connect to AI server: %v (running in echo mode)", err)
+		} else {
+			handler.aiClient = client
+			log.Printf("🤖 Connected to AI server at %s", cfg.AI.ServerAddr)
+		}
+	} else {
+		log.Println("ℹ️ AI server disabled, running in echo mode")
+	}
+
+	return handler
+}
+
+// Close 핸들러 리소스 정리
+func (h *AudioHandler) Close() error {
+	if h.aiClient != nil {
+		return h.aiClient.Close()
+	}
+	return nil
 }
 
 // HandleWebSocket 오디오 스트리밍 WebSocket 연결 처리
@@ -32,37 +58,64 @@ func (h *AudioHandler) HandleWebSocket(c *websocket.Conn) {
 
 	// Graceful Shutdown & Resource Cleanup
 	defer func() {
-		// 1. 세션 정리 (채널 닫기, 컨텍스트 취소)
 		sess.Close()
 
-		// 2. 통계 로깅
 		packetCount, audioBytes := sess.GetStats()
 		log.Printf("🔌 [%s] Connection closed. Duration: %v, Packets: %d, Total bytes: %d",
 			sess.ID, sess.Duration().Round(time.Second), packetCount, audioBytes)
 
-		// 3. WebSocket 연결 종료
 		if err := c.Close(); err != nil {
 			log.Printf("⚠️ [%s] Error closing WebSocket: %v", sess.ID, err)
 		}
 	}()
 
-	// 비동기 오디오 처리 Goroutine 시작
 	var wg sync.WaitGroup
-	wg.Add(2)
+	var writeMu sync.Mutex // WebSocket 쓰기 동기화
 
-	// 1. 오디오 처리 워커
-	go func() {
-		defer wg.Done()
-		h.processingWorker(sess)
-	}()
+	// AI 모드 또는 에코 모드 선택
+	if h.aiClient != nil {
+		// AI 모드: gRPC 스트림 연결
+		wg.Add(4)
 
-	// 2. 에코 전송 워커 (클라이언트로 오디오 전송)
-	go func() {
-		defer wg.Done()
-		h.echoWorker(c, sess)
-	}()
+		// 1. AI 스트림 연결 및 오디오 전송
+		go func() {
+			defer wg.Done()
+			h.aiStreamWorker(sess)
+		}()
 
-	// Phase 1: 핸드셰이크 (메타데이터 헤더 수신)
+		// 2. AI 응답 → WebSocket 전송 (오디오)
+		go func() {
+			defer wg.Done()
+			h.aiResponseWorker(c, sess, &writeMu)
+		}()
+
+		// 3. 오디오 처리 워커 (AI 서버로 전달)
+		go func() {
+			defer wg.Done()
+			h.processingWorkerAI(sess)
+		}()
+
+		// 4. 자막(Transcript) → WebSocket 전송
+		go func() {
+			defer wg.Done()
+			h.transcriptWorker(c, sess, &writeMu)
+		}()
+	} else {
+		// 에코 모드
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			h.processingWorkerEcho(sess)
+		}()
+
+		go func() {
+			defer wg.Done()
+			h.echoWorker(c, sess)
+		}()
+	}
+
+	// Phase 1: 핸드셰이크
 	if err := h.performHandshake(c, sess); err != nil {
 		log.Printf("❌ [%s] Handshake failed: %v", sess.ID, err)
 		h.sendErrorResponse(c, sess.ID, "HANDSHAKE_FAILED", err.Error())
@@ -72,50 +125,42 @@ func (h *AudioHandler) HandleWebSocket(c *websocket.Conn) {
 	// Phase 2: 오디오 스트리밍 수신 루프
 	h.receiveLoop(c, sess)
 
-	// 처리 워커 종료 대기
 	wg.Wait()
 }
 
 // performHandshake 메타데이터 헤더 수신 및 검증
 func (h *AudioHandler) performHandshake(c *websocket.Conn, sess *session.Session) error {
-	// 핸드셰이크 타임아웃 설정
 	deadline := time.Now().Add(h.cfg.WebSocket.HandshakeTimeout)
 	if err := c.SetReadDeadline(deadline); err != nil {
 		return fmt.Errorf("failed to set read deadline: %w", err)
 	}
 
-	// 첫 번째 메시지 수신 (메타데이터 헤더)
 	messageType, msg, err := c.ReadMessage()
 	if err != nil {
 		return fmt.Errorf("failed to read header: %w", err)
 	}
 
-	// 바이너리 메시지 확인
 	if messageType != websocket.BinaryMessage {
 		return fmt.Errorf("expected binary message, got type %d", messageType)
 	}
 
-	// 메타데이터 파싱
 	metadata, err := model.ParseMetadata(msg)
 	if err != nil {
 		return err
 	}
 
-	// 메타데이터 유효성 검증
 	if err := metadata.Validate(&h.cfg.Audio); err != nil {
 		return fmt.Errorf("invalid metadata: %w", err)
 	}
 
-	// 세션에 메타데이터 저장
 	sess.SetMetadata(metadata)
 
 	log.Printf("📋 [%s] Metadata: SampleRate=%d, Channels=%d, BitsPerSample=%d",
 		sess.ID, metadata.SampleRate, metadata.Channels, metadata.BitsPerSample)
 
-	// "ready" 응답 전송
-	readyResponse := fmt.Sprintf(`{"status":"ready","session_id":"%s"}`, sess.ID)
+	readyResponse := fmt.Sprintf(`{"status":"ready","session_id":"%s","mode":"%s"}`,
+		sess.ID, h.getMode())
 
-	// 응답 전송 타임아웃 설정
 	if err := c.SetWriteDeadline(time.Now().Add(h.cfg.WebSocket.WriteTimeout)); err != nil {
 		return fmt.Errorf("failed to set write deadline: %w", err)
 	}
@@ -124,19 +169,24 @@ func (h *AudioHandler) performHandshake(c *websocket.Conn, sess *session.Session
 		return fmt.Errorf("failed to send ready response: %w", err)
 	}
 
-	// 타임아웃 해제
 	if err := c.SetReadDeadline(time.Time{}); err != nil {
 		return fmt.Errorf("failed to clear read deadline: %w", err)
 	}
 
-	log.Printf("✅ [%s] Handshake complete. Ready to receive audio.", sess.ID)
+	log.Printf("✅ [%s] Handshake complete. Mode: %s", sess.ID, h.getMode())
 	return nil
+}
+
+func (h *AudioHandler) getMode() string {
+	if h.aiClient != nil {
+		return "ai"
+	}
+	return "echo"
 }
 
 // receiveLoop 오디오 데이터 수신 및 채널 전달
 func (h *AudioHandler) receiveLoop(c *websocket.Conn, sess *session.Session) {
 	for {
-		// 컨텍스트 취소 확인
 		select {
 		case <-sess.Context().Done():
 			log.Printf("ℹ️ [%s] Receive loop terminated by context", sess.ID)
@@ -144,7 +194,6 @@ func (h *AudioHandler) receiveLoop(c *websocket.Conn, sess *session.Session) {
 		default:
 		}
 
-		// 메시지 수신
 		messageType, msg, err := c.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -157,22 +206,19 @@ func (h *AudioHandler) receiveLoop(c *websocket.Conn, sess *session.Session) {
 			return
 		}
 
-		// 바이너리 메시지만 처리
 		if messageType != websocket.BinaryMessage {
 			log.Printf("⚠️ [%s] Ignoring non-binary message (type: %d)", sess.ID, messageType)
 			continue
 		}
 
-		// 빈 메시지 무시
 		if len(msg) == 0 {
 			continue
 		}
 
-		// Deep Copy 수행 (fasthttp 버퍼 재사용 문제 방지)
+		// Deep Copy
 		dataCopy := make([]byte, len(msg))
 		copy(dataCopy, msg)
 
-		// 패킷 생성
 		seqNum := sess.IncrementPacketCount()
 		packet := &model.AudioPacket{
 			Data:      dataCopy,
@@ -180,32 +226,91 @@ func (h *AudioHandler) receiveLoop(c *websocket.Conn, sess *session.Session) {
 			SeqNum:    seqNum,
 		}
 
-		// 통계 업데이트
 		sess.AddAudioBytes(int64(len(dataCopy)))
 
-		// 채널을 통해 Worker Goroutine으로 전달
+		// Non-blocking send
 		select {
 		case sess.AudioPackets <- packet:
-			// 성공적으로 채널에 추가됨
 		default:
-			// 채널 버퍼가 가득 참 - 패킷 드롭
 			log.Printf("⚠️ [%s] Audio buffer full, dropping packet #%d", sess.ID, seqNum)
 		}
 	}
 }
 
-// processingWorker 채널에서 오디오 패킷을 받아 처리하는 워커
-func (h *AudioHandler) processingWorker(sess *session.Session) {
-	log.Printf("🎧 [%s] Audio processing worker started", sess.ID)
+// ============================================================================
+// AI 모드 워커들
+// ============================================================================
 
-	defer func() {
-		log.Printf("🎧 [%s] Audio processing worker stopped", sess.ID)
-	}()
+// aiStreamWorker AI 서버와의 gRPC 스트림 관리
+func (h *AudioHandler) aiStreamWorker(sess *session.Session) {
+	log.Printf("🤖 [%s] AI stream worker started", sess.ID)
+	defer log.Printf("🤖 [%s] AI stream worker stopped", sess.ID)
+
+	// gRPC 스트림 시작
+	chatStream, err := h.aiClient.StartChatStream(sess.Context(), sess.ID)
+	if err != nil {
+		log.Printf("❌ [%s] Failed to start AI stream: %v", sess.ID, err)
+		return
+	}
+	defer chatStream.Cancel()
+
+	// AI 수신 채널 → 세션 에코 채널로 연결
+	for {
+		select {
+		case <-sess.Context().Done():
+			return
+
+		case audioData, ok := <-chatStream.RecvChan:
+			if !ok {
+				return
+			}
+			// AI 응답 오디오 → 에코 채널 (Non-blocking)
+			select {
+			case sess.EchoPackets <- audioData:
+			default:
+				log.Printf("⚠️ [%s] Echo buffer full, dropping AI response", sess.ID)
+			}
+
+		case text := <-chatStream.TextChan:
+			log.Printf("📝 [%s] AI Text: %s", sess.ID, text)
+
+			// Transcript 메시지를 채널로 전송
+			transcriptMsg := &session.TranscriptMessage{
+				Type:    "transcript",
+				Text:    text,
+				IsFinal: true,
+			}
+			select {
+			case sess.TranscriptChan <- transcriptMsg:
+			default:
+				log.Printf("⚠️ [%s] Transcript buffer full, dropping message", sess.ID)
+			}
+
+		case err := <-chatStream.ErrChan:
+			if err != nil {
+				log.Printf("❌ [%s] AI stream error: %v", sess.ID, err)
+			}
+			return
+		}
+	}
+}
+
+// processingWorkerAI AI 서버로 오디오 전송
+func (h *AudioHandler) processingWorkerAI(sess *session.Session) {
+	log.Printf("🎧 [%s] AI processing worker started", sess.ID)
+	defer log.Printf("🎧 [%s] AI processing worker stopped", sess.ID)
+
+	// gRPC 스트림 시작
+	chatStream, err := h.aiClient.StartChatStream(sess.Context(), sess.ID)
+	if err != nil {
+		log.Printf("❌ [%s] Failed to start AI stream for processing: %v", sess.ID, err)
+		return
+	}
+	defer chatStream.Cancel()
 
 	for {
 		select {
 		case <-sess.Context().Done():
-			// 남은 패킷 드레인
 			remaining := len(sess.AudioPackets)
 			if remaining > 0 {
 				log.Printf("ℹ️ [%s] Draining %d remaining packets", sess.ID, remaining)
@@ -217,47 +322,26 @@ func (h *AudioHandler) processingWorker(sess *session.Session) {
 				return
 			}
 
-			if err := h.processPacket(sess, packet); err != nil {
-				log.Printf("⚠️ [%s] Packet #%d processing error: %v",
-					sess.ID, packet.SeqNum, err)
+			metadata := sess.GetMetadata()
+			if metadata == nil {
+				continue
+			}
+
+			// gRPC로 전송 (Non-blocking)
+			select {
+			case chatStream.SendChan <- packet.Data:
+				// 전송 성공
+			default:
+				log.Printf("⚠️ [%s] gRPC send buffer full, dropping packet #%d", sess.ID, packet.SeqNum)
 			}
 		}
 	}
 }
 
-// processPacket 개별 오디오 패킷 처리
-func (h *AudioHandler) processPacket(sess *session.Session, packet *model.AudioPacket) error {
-	metadata := sess.GetMetadata()
-	if metadata == nil {
-		return fmt.Errorf("metadata not available")
-	}
-
-	// 패킷 정보 계산
-	sampleCount := packet.SampleCount(metadata)
-	durationMs := packet.DurationMs(metadata)
-	latency := packet.Latency()
-
-	log.Printf("🎵 [%s] Packet #%d: %d bytes, %d samples, %.1fms audio, latency: %v",
-		sess.ID, packet.SeqNum, len(packet.Data), sampleCount, durationMs, latency)
-
-	// 에코: 수신한 오디오를 클라이언트로 다시 전송
-	select {
-	case sess.EchoPackets <- packet.Data:
-		// 에코 채널에 추가됨
-	default:
-		log.Printf("⚠️ [%s] Echo buffer full, dropping packet #%d", sess.ID, packet.SeqNum)
-	}
-
-	return nil
-}
-
-// echoWorker 에코 패킷을 클라이언트로 전송하는 워커
-func (h *AudioHandler) echoWorker(c *websocket.Conn, sess *session.Session) {
-	log.Printf("📤 [%s] Echo worker started", sess.ID)
-
-	defer func() {
-		log.Printf("📤 [%s] Echo worker stopped", sess.ID)
-	}()
+// aiResponseWorker AI 응답을 WebSocket으로 전송
+func (h *AudioHandler) aiResponseWorker(c *websocket.Conn, sess *session.Session, writeMu *sync.Mutex) {
+	log.Printf("📤 [%s] AI response worker started", sess.ID)
+	defer log.Printf("📤 [%s] AI response worker stopped", sess.ID)
 
 	for {
 		select {
@@ -269,13 +353,123 @@ func (h *AudioHandler) echoWorker(c *websocket.Conn, sess *session.Session) {
 				return
 			}
 
-			// 타임아웃 설정
+			writeMu.Lock()
+			if err := c.SetWriteDeadline(time.Now().Add(h.cfg.WebSocket.WriteTimeout)); err != nil {
+				writeMu.Unlock()
+				log.Printf("⚠️ [%s] Failed to set write deadline: %v", sess.ID, err)
+				continue
+			}
+
+			if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
+				writeMu.Unlock()
+				log.Printf("⚠️ [%s] Failed to send AI response: %v", sess.ID, err)
+				return
+			}
+			writeMu.Unlock()
+		}
+	}
+}
+
+// transcriptWorker 자막 메시지를 WebSocket으로 전송
+func (h *AudioHandler) transcriptWorker(c *websocket.Conn, sess *session.Session, writeMu *sync.Mutex) {
+	log.Printf("📝 [%s] Transcript worker started", sess.ID)
+	defer log.Printf("📝 [%s] Transcript worker stopped", sess.ID)
+
+	for {
+		select {
+		case <-sess.Context().Done():
+			return
+
+		case msg, ok := <-sess.TranscriptChan:
+			if !ok {
+				return
+			}
+
+			writeMu.Lock()
+			if err := c.SetWriteDeadline(time.Now().Add(h.cfg.WebSocket.WriteTimeout)); err != nil {
+				writeMu.Unlock()
+				log.Printf("⚠️ [%s] Failed to set write deadline for transcript: %v", sess.ID, err)
+				continue
+			}
+
+			// JSON 형식으로 전송 (특수문자 이스케이프 처리)
+			jsonData, err := json.Marshal(msg)
+			if err != nil {
+				writeMu.Unlock()
+				log.Printf("⚠️ [%s] Failed to marshal transcript: %v", sess.ID, err)
+				continue
+			}
+
+			if err := c.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+				writeMu.Unlock()
+				log.Printf("⚠️ [%s] Failed to send transcript: %v", sess.ID, err)
+				return
+			}
+			writeMu.Unlock()
+
+			log.Printf("📤 [%s] Transcript sent: %s", sess.ID, msg.Text)
+		}
+	}
+}
+
+// ============================================================================
+// 에코 모드 워커들 (AI 비활성화 시)
+// ============================================================================
+
+// processingWorkerEcho 에코 모드: 수신 오디오를 그대로 반환
+func (h *AudioHandler) processingWorkerEcho(sess *session.Session) {
+	log.Printf("🎧 [%s] Echo processing worker started", sess.ID)
+	defer log.Printf("🎧 [%s] Echo processing worker stopped", sess.ID)
+
+	for {
+		select {
+		case <-sess.Context().Done():
+			remaining := len(sess.AudioPackets)
+			if remaining > 0 {
+				log.Printf("ℹ️ [%s] Draining %d remaining packets", sess.ID, remaining)
+			}
+			return
+
+		case packet, ok := <-sess.AudioPackets:
+			if !ok {
+				return
+			}
+
+			metadata := sess.GetMetadata()
+			if metadata == nil {
+				continue
+			}
+
+			// 에코: 수신한 오디오를 그대로 반환
+			select {
+			case sess.EchoPackets <- packet.Data:
+			default:
+				log.Printf("⚠️ [%s] Echo buffer full, dropping packet #%d", sess.ID, packet.SeqNum)
+			}
+		}
+	}
+}
+
+// echoWorker 에코 패킷을 클라이언트로 전송
+func (h *AudioHandler) echoWorker(c *websocket.Conn, sess *session.Session) {
+	log.Printf("📤 [%s] Echo worker started", sess.ID)
+	defer log.Printf("📤 [%s] Echo worker stopped", sess.ID)
+
+	for {
+		select {
+		case <-sess.Context().Done():
+			return
+
+		case data, ok := <-sess.EchoPackets:
+			if !ok {
+				return
+			}
+
 			if err := c.SetWriteDeadline(time.Now().Add(h.cfg.WebSocket.WriteTimeout)); err != nil {
 				log.Printf("⚠️ [%s] Failed to set write deadline: %v", sess.ID, err)
 				continue
 			}
 
-			// 바이너리 데이터 전송
 			if err := c.WriteMessage(websocket.BinaryMessage, data); err != nil {
 				log.Printf("⚠️ [%s] Failed to send echo: %v", sess.ID, err)
 				return

@@ -75,7 +75,7 @@ Temporary Items
 
 # misc
 *.pem
-
+/python-server/venv
 # debug
 npm-debug.log*
 yarn-debug.log*

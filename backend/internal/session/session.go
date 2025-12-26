@@ -33,6 +33,13 @@ func (s State) String() string {
 	}
 }
 
+// TranscriptMessage 자막 메시지
+type TranscriptMessage struct {
+	Type    string `json:"type"`
+	Text    string `json:"text"`
+	IsFinal bool   `json:"isFinal"`
+}
+
 // Session 클라이언트 세션 (Thread-Safe)
 type Session struct {
 	ID          string
@@ -52,6 +59,9 @@ type Session struct {
 
 	// 에코 응답용 채널
 	EchoPackets chan []byte
+
+	// 자막(Transcript) 전송용 채널
+	TranscriptChan chan *TranscriptMessage
 }
 
 // New 새 세션 생성
@@ -59,13 +69,14 @@ func New(bufferSize int) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Session{
-		ID:           uuid.New().String(),
-		State:        StateAwaitingHeader,
-		ConnectedAt:  time.Now(),
-		AudioPackets: make(chan *model.AudioPacket, bufferSize),
-		EchoPackets:  make(chan []byte, bufferSize),
-		ctx:          ctx,
-		cancel:       cancel,
+		ID:             uuid.New().String(),
+		State:          StateAwaitingHeader,
+		ConnectedAt:    time.Now(),
+		AudioPackets:   make(chan *model.AudioPacket, bufferSize),
+		EchoPackets:    make(chan []byte, bufferSize),
+		TranscriptChan: make(chan *TranscriptMessage, 50), // 자막 버퍼
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 }
 
@@ -142,6 +153,7 @@ func (s *Session) Close() {
 	s.cancel()
 	close(s.AudioPackets)
 	close(s.EchoPackets)
+	close(s.TranscriptChan)
 }
 
 // IsClosed 세션 종료 여부 확인

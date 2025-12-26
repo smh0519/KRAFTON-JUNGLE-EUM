@@ -46,9 +46,9 @@ export function VoiceMonitor() {
   const status = getVADStatus(vad);
 
   return (
-    <div className="flex flex-col items-center gap-6 p-8 w-full max-w-md">
+    <div className="relative flex flex-col items-center gap-6 p-8 w-full max-w-md">
       <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-        Echo Test
+        STT Test
       </h2>
 
       {getConnectionBadge(vad.connectionState)}
@@ -81,11 +81,22 @@ export function VoiceMonitor() {
       )}
 
       <div className="text-sm text-zinc-500 dark:text-zinc-400 text-center space-y-1">
-        <p>음성 감지 → 서버 전송 → 에코 재생</p>
-        <p>RNNoise + DSP 자동 적용</p>
+        <p>음성 감지 → 서버 전송 → STT 변환</p>
+        <p>RNNoise + DSP + faster-whisper</p>
       </div>
 
       <SpeechLog entries={vad.speechLog} />
+
+      {/* 자막 오버레이 */}
+      {vad.subtitle && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 max-w-2xl w-[90%]">
+          <div className="bg-black/80 backdrop-blur-sm text-white text-center px-6 py-4 rounded-lg shadow-2xl">
+            <p className="text-lg font-medium leading-relaxed">
+              {vad.subtitle}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

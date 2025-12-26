@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package conversation;
+
+option go_package = "realtime-backend/pb;pb";
+
+// 대화 서비스 정의
+service ConversationService {
+  // 양방향 스트리밍 RPC
+  // Go(Audio) → Python(AI) → Go(Audio/Text)
+  rpc StreamChat (stream ChatRequest) returns (stream ChatResponse);
+}
+
+// 클라이언트 → 서버 요청
+message ChatRequest {
+  // 세션 식별자
+  string session_id = 1;
+
+  // 요청 타입 (oneof)
+  oneof payload {
+    // 오디오 청크 (Int16 PCM)
+    bytes audio_chunk = 2;
+
+    // 세션 초기화 정보
+    SessionInit session_init = 3;
+
+    // 세션 종료 신호
+    SessionEnd session_end = 4;
+  }
+}
+
+// 세션 초기화 정보
+message SessionInit {
+  uint32 sample_rate = 1;      // 샘플레이트 (예: 16000)
+  uint32 channels = 2;         // 채널 수 (예: 1)
+  uint32 bits_per_sample = 3;  // 비트 깊이 (예: 16)
+  string language = 4;         // 언어 코드 (예: "ko-KR")
+}
+
+// 세션 종료 신호
+message SessionEnd {
+  string reason = 1;  // 종료 사유
+}
+
+// 서버 → 클라이언트 응답
+message ChatResponse {
+  // 세션 식별자
+  string session_id = 1;
+
+  // 응답 타입 (oneof)
+  oneof payload {
+    // TTS 오디오 청크
+    bytes audio_chunk = 2;
+
+    // STT 중간 결과 (실시간 자막)
+    TranscriptPartial transcript_partial = 3;
+
+    // STT 최종 결과
+    TranscriptFinal transcript_final = 4;
+
+    // LLM 응답 텍스트
+    TextResponse text_response = 5;
+
+    // 에러 응답
+    ErrorResponse error = 6;
+  }
+}
+
+// STT 중간 결과 (실시간 자막)
+message TranscriptPartial {
+  string text = 1;
+  float confidence = 2;
+}
+
+// STT 최종 결과
+message TranscriptFinal {
+  string text = 1;
+  float confidence = 2;
+  uint64 start_time_ms = 3;
+  uint64 end_time_ms = 4;
+}
+
+// LLM 응답 텍스트
+message TextResponse {
+  string text = 1;
+  bool is_final = 2;  // 스트리밍 중인지 최종인지
+}
+
+// 에러 응답
+message ErrorResponse {
+  string code = 1;
+  string message = 2;
+}

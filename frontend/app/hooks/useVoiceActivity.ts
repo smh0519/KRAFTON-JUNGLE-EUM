@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useMicVAD } from "@ricky0123/vad-react";
 import { VAD_DEFAULT_OPTIONS, SPEECH_LOG_MAX_ENTRIES, WS_AUDIO_URL } from "@/app/constants";
 import { audioPlayer } from "@/app/services";
-import { audioSocket, ConnectionState } from "@/app/services/audioSocket";
+import { audioSocket, ConnectionState, TranscriptMessage } from "@/app/services/audioSocket";
 import { int16ToFloat32, arrayBufferToInt16 } from "@/app/utils/audioEncoder";
 import type { SpeechLogEntry } from "@/app/types";
 
@@ -19,7 +19,9 @@ export function useVoiceActivity(options: UseVoiceActivityOptions = {}) {
   const [speechLog, setSpeechLog] = useState<SpeechLogEntry[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
+  const [subtitle, setSubtitle] = useState<string>("");
   const isConnectedRef = useRef(false);
+  const subtitleTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const addLogEntry = useCallback(
     (type: SpeechLogEntry["type"], message: string) => {
@@ -71,6 +73,19 @@ export function useVoiceActivity(options: UseVoiceActivityOptions = {}) {
           }
         }
       },
+      onTranscript: (transcript: TranscriptMessage) => {
+        // 자막 업데이트
+        setSubtitle(transcript.text);
+        addLogEntry("info", `📝 ${transcript.text}`);
+
+        // 5초 후 자막 자동 제거
+        if (subtitleTimeoutRef.current) {
+          clearTimeout(subtitleTimeoutRef.current);
+        }
+        subtitleTimeoutRef.current = setTimeout(() => {
+          setSubtitle("");
+        }, 5000);
+      },
       onError: (error) => {
         console.error("WebSocket error:", error);
       },
@@ -106,11 +121,21 @@ export function useVoiceActivity(options: UseVoiceActivityOptions = {}) {
     setSpeechLog([]);
   }, []);
 
+  // 클린업
+  useEffect(() => {
+    return () => {
+      if (subtitleTimeoutRef.current) {
+        clearTimeout(subtitleTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return {
     ...vad,
     audioLevel,
     speechLog,
     clearLog,
     connectionState,
+    subtitle,
   };
 }

@@ -16,9 +16,16 @@ import {
 
 export type ConnectionState = "disconnected" | "connecting" | "connected" | "error";
 
+export interface TranscriptMessage {
+  type: "transcript";
+  text: string;
+  isFinal: boolean;
+}
+
 export interface AudioSocketCallbacks {
   onConnectionChange?: (state: ConnectionState) => void;
   onMessage?: (data: string | ArrayBuffer) => void;
+  onTranscript?: (transcript: TranscriptMessage) => void;
   onError?: (error: Event) => void;
 }
 
@@ -70,7 +77,36 @@ class AudioSocketService {
       };
 
       this.socket.onmessage = (event) => {
-        this.callbacks.onMessage?.(event.data);
+        const data = event.data;
+
+        // 바이너리 데이터는 그대로 전달
+        if (data instanceof ArrayBuffer) {
+          this.callbacks.onMessage?.(data);
+          return;
+        }
+
+        // 텍스트 메시지 (JSON) 파싱
+        if (typeof data === "string") {
+          try {
+            const parsed = JSON.parse(data);
+
+            // 자막(Transcript) 메시지 처리
+            if (parsed.type === "transcript") {
+              this.callbacks.onTranscript?.({
+                type: "transcript",
+                text: parsed.text,
+                isFinal: parsed.isFinal,
+              });
+              return;
+            }
+
+            // 기타 JSON 메시지는 onMessage로 전달
+            this.callbacks.onMessage?.(data);
+          } catch {
+            // JSON 파싱 실패 시 문자열 그대로 전달
+            this.callbacks.onMessage?.(data);
+          }
+        }
       };
     } catch (error) {
       this.setConnectionState("error");
