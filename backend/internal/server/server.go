@@ -12,35 +12,56 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"gorm.io/gorm"
 
+	"realtime-backend/internal/auth"
 	"realtime-backend/internal/config"
 	"realtime-backend/internal/handler"
 )
 
 // Server Fiber 서버 래퍼
 type Server struct {
-	app     *fiber.App
-	cfg     *config.Config
-	handler *handler.AudioHandler
+	app         *fiber.App
+	cfg         *config.Config
+	db          *gorm.DB
+	handler     *handler.AudioHandler
+	authHandler *handler.AuthHandler
+	jwtManager  *auth.JWTManager
 }
 
 // New 새 서버 인스턴스 생성
-func New(cfg *config.Config) *Server {
+func New(cfg *config.Config, db *gorm.DB) *Server {
 	app := fiber.New(fiber.Config{
-		AppName:       "Realtime Voice AI Gateway",
-		ServerHeader:  "Fiber",
-		StrictRouting: true,
-		CaseSensitive: true,
-		ReadTimeout:   cfg.Server.ReadTimeout,
-		WriteTimeout:  cfg.Server.WriteTimeout,
-		IdleTimeout:   cfg.Server.IdleTimeout,
-		Prefork:       false, // WebSocket과 호환성 문제로 비활성화
+		AppName:               "Realtime Voice AI Gateway",
+		ServerHeader:          "Fiber",
+		StrictRouting:         true,
+		CaseSensitive:         true,
+		ReadTimeout:           cfg.Server.ReadTimeout,
+		WriteTimeout:          cfg.Server.WriteTimeout,
+		IdleTimeout:           cfg.Server.IdleTimeout,
+		Prefork:               false, // WebSocket과 호환성 문제로 비활성화
+		ReadBufferSize:        16384, // 16KB - 큰 헤더 허용
+		WriteBufferSize:       16384,
+		BodyLimit:             10 * 1024 * 1024, // 10MB
+		DisableStartupMessage: false,
 	})
 
+	// Auth 초기화
+	jwtManager := auth.NewJWTManager(
+		cfg.Auth.JWTSecret,
+		cfg.Auth.AccessTokenExpiry,
+		cfg.Auth.RefreshTokenExpiry,
+	)
+	googleAuth := auth.NewGoogleAuthenticator(cfg.Auth.GoogleClientID)
+	authHandler := handler.NewAuthHandler(db, jwtManager, googleAuth, cfg.Auth.SecureCookie)
+
 	return &Server{
-		app:     app,
-		cfg:     cfg,
-		handler: handler.NewAudioHandler(cfg),
+		app:         app,
+		cfg:         cfg,
+		db:          db,
+		handler:     handler.NewAudioHandler(cfg),
+		authHandler: authHandler,
+		jwtManager:  jwtManager,
 	}
 }
 
@@ -60,8 +81,10 @@ func (s *Server) SetupMiddleware() {
 
 	// CORS
 	s.app.Use(cors.New(cors.Config{
-		AllowOrigins: s.cfg.CORS.AllowOrigins,
-		AllowHeaders: s.cfg.CORS.AllowHeaders,
+		AllowOrigins:     s.cfg.CORS.AllowOrigins,
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
+		AllowCredentials: true,
 	}))
 }
 
@@ -74,6 +97,13 @@ func (s *Server) SetupRoutes() {
 			"timestamp": time.Now().Unix(),
 		})
 	})
+
+	// Auth 라우트 그룹
+	authGroup := s.app.Group("/auth")
+	authGroup.Post("/google", s.authHandler.GoogleLogin)
+	authGroup.Post("/refresh", s.authHandler.RefreshToken)
+	authGroup.Post("/logout", s.authHandler.Logout)
+	authGroup.Get("/me", auth.AuthMiddleware(s.jwtManager), s.authHandler.GetMe)
 
 	// WebSocket 업그레이드 체크 미들웨어
 	s.app.Use("/ws", func(c *fiber.Ctx) error {

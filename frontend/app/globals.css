@@ -127,10 +127,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Minimal scrollbar */
+/* Minimal scrollbar - thin black line */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 2px;
+  height: 2px;
 }
 
 ::-webkit-scrollbar-track {
@@ -138,12 +138,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
+  background: #000000;
+  border-radius: 0;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
+  background: #000000;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #000000 transparent;
 }
 
 /* Focus styles */

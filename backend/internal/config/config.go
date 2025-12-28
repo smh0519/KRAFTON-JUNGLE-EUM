@@ -17,6 +17,16 @@ type Config struct {
 	Audio     AudioConfig
 	CORS      CORSConfig
 	AI        AIConfig
+	Auth      AuthConfig
+}
+
+// AuthConfig 인증 설정
+type AuthConfig struct {
+	JWTSecret          string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenExpiry time.Duration
+	GoogleClientID     string
+	SecureCookie       bool
 }
 
 // AIConfig AI 서버 설정
@@ -88,6 +98,13 @@ func Load() *Config {
 		AI: AIConfig{
 			ServerAddr: getEnv("AI_SERVER_ADDR", "localhost:50051"),
 			Enabled:    getBool("AI_ENABLED", false),
+		},
+		Auth: AuthConfig{
+			JWTSecret:          getEnv("JWT_SECRET", "change-this-secret-in-production"),
+			AccessTokenExpiry:  getDuration("ACCESS_TOKEN_EXPIRY", 1*time.Hour),
+			RefreshTokenExpiry: getDuration("REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
+			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+			SecureCookie:       getBool("SECURE_COOKIE", false),
 		},
 	}
 }

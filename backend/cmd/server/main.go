@@ -31,7 +31,7 @@ func main() {
 	log.Printf("📦 PostgreSQL: %s", version[:50]+"...")
 
 	// 서버 생성 및 설정
-	srv := server.New(cfg)
+	srv := server.New(cfg, db)
 	srv.SetupMiddleware()
 	srv.SetupRoutes()
 
