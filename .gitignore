@@ -113,4 +113,8 @@ next-env.d.ts
 .history
 .ionide
 
+
 # End of https://www.toptal.com/developers/gitignore/api/nextjs,go,visualstudiocode,macos
+
+# Old code
+old/
