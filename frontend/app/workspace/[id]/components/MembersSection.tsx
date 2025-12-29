@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Workspace } from "../../../lib/api";
+import { filterActiveMembers } from "../../../lib/utils";
 import InviteMemberModal from "./InviteMemberModal";
 
 interface MembersSectionProps {
@@ -19,8 +20,8 @@ export default function MembersSection({ workspace, onMembersUpdate }: MembersSe
   const [searchQuery, setSearchQuery] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  // 워크스페이스 멤버 목록 변환
-  const members = (workspace.members || []).map((m) => ({
+  // 워크스페이스 멤버 목록 변환 (ACTIVE 멤버만 표시)
+  const members = filterActiveMembers(workspace.members || []).map((m) => ({
     id: m.id,
     userId: m.user_id,
     name: m.user?.nickname || "알 수 없음",

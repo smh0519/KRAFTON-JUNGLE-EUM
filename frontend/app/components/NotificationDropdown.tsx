@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { apiClient, Notification } from "../lib/api";
+import { NotificationType } from "../lib/constants";
+import { APP_CONFIG } from "../lib/config";
 
 interface NotificationDropdownProps {
     onInvitationAccepted?: (workspaceId: number) => void;
@@ -34,10 +36,10 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         }
     }, [isOpen]);
 
-    // 주기적으로 알림 목록 갱신 (30초마다)
+    // 주기적으로 알림 목록 갱신
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 30000);
+        const interval = setInterval(fetchNotifications, APP_CONFIG.NOTIFICATION_POLL_INTERVAL);
         return () => clearInterval(interval);
     }, []);
 
@@ -97,7 +99,7 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
     };
 
     // 초대 알림 필터링
-    const inviteNotifications = notifications.filter(n => n.type === "WORKSPACE_INVITE");
+    const inviteNotifications = notifications.filter(n => n.type === NotificationType.WORKSPACE_INVITE);
 
     return (
         <div ref={dropdownRef} className="relative">
@@ -171,7 +173,7 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
                                             </p>
 
                                             {/* 초대 알림인 경우 수락/거절 버튼 */}
-                                            {notification.type === "WORKSPACE_INVITE" && (
+                                            {notification.type === NotificationType.WORKSPACE_INVITE && (
                                                 <div className="flex gap-2 mt-3">
                                                     <button
                                                         onClick={() => handleAccept(notification)}

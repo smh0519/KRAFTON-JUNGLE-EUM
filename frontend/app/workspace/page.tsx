@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth-context";
 import { apiClient, UserSearchResult, Workspace } from "../lib/api";
+import { filterActiveMembers } from "../lib/utils";
 import NotificationDropdown from "../components/NotificationDropdown";
 
 export default function WorkspacePage() {
@@ -344,9 +345,10 @@ export default function WorkspacePage() {
 
                 {/* Workspace Cards */}
                 {workspaces.map((workspace) => {
-                  const members = workspace.members || [];
-                  const displayMembers = members.slice(0, 4);
-                  const remainingCount = members.length - 4;
+                  // ACTIVE 멤버만 필터링
+                  const activeMembers = filterActiveMembers(workspace.members || []);
+                  const displayMembers = activeMembers.slice(0, 4);
+                  const remainingCount = activeMembers.length - 4;
 
                   // 상대적 시간 계산
                   const getRelativeTime = (dateString: string) => {

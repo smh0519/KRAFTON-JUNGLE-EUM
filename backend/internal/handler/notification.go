@@ -87,7 +87,7 @@ func (h *NotificationHandler) AcceptInvitation(c *fiber.Ctx) error {
 	}
 
 	// 초대 알림인지 확인
-	if notification.Type != "WORKSPACE_INVITE" {
+	if notification.Type != model.NotificationTypeWorkspaceInvite.String() {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "this is not an invitation notification",
 		})
@@ -123,7 +123,7 @@ func (h *NotificationHandler) AcceptInvitation(c *fiber.Ctx) error {
 	}
 
 	// 멤버십 활성화
-	if err := tx.Model(&member).Update("status", "ACTIVE").Error; err != nil {
+	if err := tx.Model(&member).Update("status", model.MemberStatusActive.String()).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "failed to activate membership",
@@ -164,7 +164,7 @@ func (h *NotificationHandler) DeclineInvitation(c *fiber.Ctx) error {
 	}
 
 	// 초대 알림인지 확인
-	if notification.Type != "WORKSPACE_INVITE" {
+	if notification.Type != model.NotificationTypeWorkspaceInvite.String() {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "this is not an invitation notification",
 		})
@@ -190,7 +190,7 @@ func (h *NotificationHandler) DeclineInvitation(c *fiber.Ctx) error {
 	}
 
 	// PENDING 상태의 멤버십 삭제
-	if err := tx.Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, claims.UserID, "PENDING").Delete(&model.WorkspaceMember{}).Error; err != nil {
+	if err := tx.Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, claims.UserID, model.MemberStatusPending.String()).Delete(&model.WorkspaceMember{}).Error; err != nil {
 		tx.Rollback()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "failed to decline invitation",
@@ -246,7 +246,7 @@ func CreateNotification(db *gorm.DB, receiverID int64, senderID *int64, notifica
 func CreateWorkspaceInviteNotification(db *gorm.DB, inviterID, inviteeID, workspaceID int64, workspaceName, inviterName string) error {
 	content := fmt.Sprintf("%s님이 %s 워크스페이스에 초대했습니다.", inviterName, workspaceName)
 	relatedType := "WORKSPACE"
-	return CreateNotification(db, inviteeID, &inviterID, "WORKSPACE_INVITE", content, &relatedType, &workspaceID)
+	return CreateNotification(db, inviteeID, &inviterID, model.NotificationTypeWorkspaceInvite.String(), content, &relatedType, &workspaceID)
 }
 
 // 응답 변환

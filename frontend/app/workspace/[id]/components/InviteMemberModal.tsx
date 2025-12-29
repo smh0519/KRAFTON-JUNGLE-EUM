@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { apiClient, UserSearchResult } from "../../../lib/api";
+import { APP_CONFIG } from "../../../lib/config";
 
 interface InviteMemberModalProps {
     workspaceId: number;
@@ -50,7 +51,7 @@ export default function InviteMemberModal({
             }
         };
 
-        const debounceTimer = setTimeout(searchUsers, 300);
+        const debounceTimer = setTimeout(searchUsers, APP_CONFIG.SEARCH_DEBOUNCE_DELAY);
         return () => clearTimeout(debounceTimer);
     }, [searchQuery, currentMembers]);
 
@@ -203,8 +204,8 @@ export default function InviteMemberModal({
                                         key={user.id}
                                         onClick={() => handleSelectUser(user)}
                                         className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isSelected
-                                                ? "bg-black text-white"
-                                                : "hover:bg-black/[0.02] text-black"
+                                            ? "bg-black text-white"
+                                            : "hover:bg-black/[0.02] text-black"
                                             }`}
                                     >
                                         {/* Avatar */}
@@ -217,8 +218,8 @@ export default function InviteMemberModal({
                                         ) : (
                                             <div
                                                 className={`w-10 h-10 rounded-full flex items-center justify-center ${isSelected
-                                                        ? "bg-white/20"
-                                                        : "bg-gradient-to-br from-black/10 to-black/5"
+                                                    ? "bg-white/20"
+                                                    : "bg-gradient-to-br from-black/10 to-black/5"
                                                     }`}
                                             >
                                                 <span
@@ -244,8 +245,8 @@ export default function InviteMemberModal({
                                         {/* Checkbox */}
                                         <div
                                             className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isSelected
-                                                    ? "bg-white border-white"
-                                                    : "border-black/20"
+                                                ? "bg-white border-white"
+                                                : "border-black/20"
                                                 }`}
                                         >
                                             {isSelected && (
@@ -280,8 +281,8 @@ export default function InviteMemberModal({
                         onClick={handleInvite}
                         disabled={selectedUsers.length === 0 || isInviting}
                         className={`px-6 py-2 text-sm font-medium rounded-lg transition-all ${selectedUsers.length > 0 && !isInviting
-                                ? "bg-black text-white hover:bg-black/80"
-                                : "bg-black/10 text-black/30 cursor-not-allowed"
+                            ? "bg-black text-white hover:bg-black/80"
+                            : "bg-black/10 text-black/30 cursor-not-allowed"
                             }`}
                     >
                         {isInviting ? (

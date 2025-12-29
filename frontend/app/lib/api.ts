@@ -28,6 +28,7 @@ interface WorkspaceMember {
   id: number;
   user_id: number;
   role_id?: number;
+  status?: string; // PENDING, ACTIVE, LEFT
   joined_at: string;
   user?: UserSearchResult;
 }

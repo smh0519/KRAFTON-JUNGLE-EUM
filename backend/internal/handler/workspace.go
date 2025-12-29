@@ -39,6 +39,7 @@ type WorkspaceMemberResponse struct {
 	ID       int64         `json:"id"`
 	UserID   int64         `json:"user_id"`
 	RoleID   *int64        `json:"role_id,omitempty"`
+	Status   string        `json:"status"`
 	JoinedAt string        `json:"joined_at"`
 	User     *UserResponse `json:"user,omitempty"`
 }
@@ -72,6 +73,8 @@ func (h *WorkspaceHandler) CreateWorkspace(c *fiber.Ctx) error {
 
 	// 트랜잭션으로 워크스페이스 + 멤버 생성
 	var workspace model.Workspace
+	var invitedMemberIDs []int64 // 초대된 멤버 ID 목록 저장
+
 	err := h.db.Transaction(func(tx *gorm.DB) error {
 		// 워크스페이스 생성
 		workspace = model.Workspace{
@@ -82,16 +85,17 @@ func (h *WorkspaceHandler) CreateWorkspace(c *fiber.Ctx) error {
 			return err
 		}
 
-		// 소유자를 멤버로 추가
+		// 소유자를 멤버로 추가 (ACTIVE 상태)
 		ownerMember := model.WorkspaceMember{
 			WorkspaceID: workspace.ID,
 			UserID:      claims.UserID,
+			Status:      model.MemberStatusActive.String(),
 		}
 		if err := tx.Create(&ownerMember).Error; err != nil {
 			return err
 		}
 
-		// 초대할 멤버들 추가
+		// 초대할 멤버들 추가 (PENDING 상태)
 		for _, memberID := range req.MemberIDs {
 			// 본인은 이미 추가됨
 			if memberID == claims.UserID {
@@ -104,13 +108,18 @@ func (h *WorkspaceHandler) CreateWorkspace(c *fiber.Ctx) error {
 				continue // 존재하지 않는 사용자는 무시
 			}
 
+			// PENDING 상태로 멤버 생성
 			member := model.WorkspaceMember{
 				WorkspaceID: workspace.ID,
 				UserID:      memberID,
+				Status:      model.MemberStatusPending.String(),
 			}
 			if err := tx.Create(&member).Error; err != nil {
-				return err
+				continue // 멤버 생성 실패 시 다음 멤버로
 			}
+
+			// 성공적으로 생성된 멤버 ID 저장
+			invitedMemberIDs = append(invitedMemberIDs, memberID)
 		}
 
 		return nil
@@ -120,6 +129,19 @@ func (h *WorkspaceHandler) CreateWorkspace(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "failed to create workspace",
 		})
+	}
+
+	// 초대된 멤버들에게 알림 전송
+	if len(invitedMemberIDs) > 0 {
+		// 초대자 정보 조회
+		var inviter model.User
+		h.db.First(&inviter, claims.UserID)
+
+		// 각 초대된 멤버에게 알림 생성
+		for _, memberID := range invitedMemberIDs {
+			// 알림 생성 실패해도 워크스페이스 생성은 성공으로 처리
+			CreateWorkspaceInviteNotification(h.db, claims.UserID, memberID, workspace.ID, workspace.Name, inviter.Nickname)
+		}
 	}
 
 	// 생성된 워크스페이스 조회 (멤버 포함)
@@ -137,9 +159,9 @@ func (h *WorkspaceHandler) GetMyWorkspaces(c *fiber.Ctx) error {
 	// 내가 ACTIVE 멤버로 속한 워크스페이스 조회
 	err := h.db.
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspace_members.user_id = ? AND workspace_members.status = ?", claims.UserID, "ACTIVE").
+		Where("workspace_members.user_id = ? AND workspace_members.status = ?", claims.UserID, model.MemberStatusActive.String()).
 		Preload("Owner").
-		Preload("Members", "status = ?", "ACTIVE").
+		Preload("Members", "status = ?", model.MemberStatusActive.String()).
 		Preload("Members.User").
 		Order("workspaces.created_at DESC").
 		Find(&workspaces).Error
@@ -236,7 +258,7 @@ func (h *WorkspaceHandler) AddMembers(c *fiber.Ctx) error {
 	// 멤버인지 확인
 	isMember := false
 	for _, member := range workspace.Members {
-		if member.UserID == claims.UserID && member.Status == "ACTIVE" {
+		if member.UserID == claims.UserID && member.Status == model.MemberStatusActive.String() {
 			isMember = true
 			break
 		}
@@ -276,7 +298,7 @@ func (h *WorkspaceHandler) AddMembers(c *fiber.Ctx) error {
 		member := model.WorkspaceMember{
 			WorkspaceID: workspace.ID,
 			UserID:      memberID,
-			Status:      "PENDING",
+			Status:      model.MemberStatusPending.String(),
 		}
 		if err := h.db.Create(&member).Error; err != nil {
 			continue
@@ -369,6 +391,7 @@ func (h *WorkspaceHandler) toWorkspaceResponse(ws *model.Workspace) WorkspaceRes
 				ID:       m.ID,
 				UserID:   m.UserID,
 				RoleID:   m.RoleID,
+				Status:   m.Status,
 				JoinedAt: m.JoinedAt.Format("2006-01-02T15:04:05Z07:00"),
 			}
 			if m.User.ID != 0 {

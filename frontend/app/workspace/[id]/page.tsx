@@ -132,27 +132,14 @@ export default function WorkspaceDetailPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={async () => {
-                if (confirm("정말로 이 워크스페이스를 나가시겠습니까?")) {
-                  try {
-                    await apiClient.leaveWorkspace(workspace.id);
-                    router.push("/workspace");
-                  } catch (error: unknown) {
-                    if (error instanceof Error && error.message.includes("owner cannot leave")) {
-                      alert("소유자는 워크스페이스를 나갈 수 없습니다. 소유권을 이전하거나 워크스페이스를 삭제하세요.");
-                    } else {
-                      alert("워크스페이스 나가기에 실패했습니다.");
-                    }
-                  }
-                }
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors mr-2"
-              title="워크스페이스 나가기"
+              onClick={() => router.push("/workspace")}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-black/60 hover:bg-black/5 rounded-lg transition-colors mr-2"
+              title="메인으로"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
-              나가기
+              메인으로
             </button>
             <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
             {user.profileImg ? (
