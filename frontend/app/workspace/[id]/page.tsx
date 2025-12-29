@@ -129,8 +129,17 @@ export default function WorkspaceDetailPage() {
             {/* Breadcrumb could go here */}
           </div>
 
-          {/* User Profile */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/workspace")}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors mr-2"
+              title="워크스페이스 나가기"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              나가기
+            </button>
             <button className="p-2 rounded-lg hover:bg-black/5 text-black/40 hover:text-black/70 transition-colors">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -140,18 +149,16 @@ export default function WorkspaceDetailPage() {
               <img
                 src={user.profileImg}
                 alt={user.nickname}
-                className="w-8 h-8 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-black/10 transition-all"
-                onClick={() => router.push("/workspace")}
+                className="w-8 h-8 rounded-full object-cover hover:ring-2 hover:ring-black/10 transition-all"
               />
             ) : (
-              <button
-                onClick={() => router.push("/workspace")}
+              <div
                 className="w-8 h-8 rounded-full bg-black flex items-center justify-center hover:ring-2 hover:ring-black/20 transition-all"
               >
                 <span className="text-xs font-medium text-white">
                   {user.nickname.charAt(0).toUpperCase()}
                 </span>
-              </button>
+              </div>
             )}
           </div>
         </header>
