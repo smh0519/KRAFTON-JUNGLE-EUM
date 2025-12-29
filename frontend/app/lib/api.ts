@@ -185,14 +185,6 @@ interface FilesResponse {
   breadcrumbs?: WorkspaceFile[];
 }
 
-// 화이트보드 관련 타입
-interface WhiteboardResponse {
-  success: boolean;
-  history: any[];
-  canUndo: boolean;
-  canRedo: boolean;
-}
-
 // HTTP-only 쿠키 기반 인증 (XSS 방지)
 class ApiClient {
   private isLoggedIn: boolean = false;
@@ -510,26 +502,6 @@ class ApiClient {
 
   async getDownloadURL(workspaceId: number, fileId: number): Promise<{ url: string }> {
     return this.request(`/api/workspaces/${workspaceId}/files/${fileId}/download`);
-  }
-
-  // ========== 비디오 통화 API ==========
-  async getVideoToken(roomName: string, participantName?: string): Promise<{ token: string }> {
-    return this.request<{ token: string }>('/api/video/token', {
-      method: 'POST',
-      body: JSON.stringify({ roomName, participantName }),
-    });
-  }
-
-  // ========== 화이트보드 API ==========
-  async getWhiteboardHistory(roomName: string): Promise<WhiteboardResponse> {
-    return this.request<WhiteboardResponse>(`/api/whiteboard?room=${roomName}`);
-  }
-
-  async handleWhiteboardAction(roomName: string, action: { type?: string; stroke?: any }): Promise<WhiteboardResponse> {
-    return this.request<WhiteboardResponse>('/api/whiteboard', {
-      method: 'POST',
-      body: JSON.stringify({ room: roomName, ...action }),
-    });
   }
 
   // 파일을 S3에 직접 업로드 (Presigned URL 사용)

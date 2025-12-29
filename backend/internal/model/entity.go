@@ -139,8 +139,7 @@ type Whiteboard struct {
 	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	MeetingID   *int64    `json:"meeting_id,omitempty"`
 	WorkspaceID int64     `gorm:"not null" json:"workspace_id"`
-	Data        *string   `gorm:"type:jsonb" json:"data,omitempty"` // JSONB - Stroke history
-	RedoData    *string   `gorm:"type:jsonb" json:"redo_data,omitempty"` // JSONB - Redo stack
+	Data        *string   `gorm:"type:jsonb" json:"data,omitempty"` // JSONB
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations

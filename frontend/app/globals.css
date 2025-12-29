@@ -94,8 +94,7 @@
   font-family: 'Paperozi', sans-serif !important;
 }
 
-html,
-body {
+html, body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
@@ -155,20 +154,15 @@ textarea:focus-visible {
 }
 
 /* Smooth transitions */
-button,
-a,
-input {
+button, a, input {
   transition: all 0.15s ease;
 }
 
 /* Animation keyframes */
 @keyframes soundbar {
-
-  0%,
-  100% {
+  0%, 100% {
     transform: scaleY(0.4);
   }
-
   50% {
     transform: scaleY(1);
   }
@@ -179,12 +173,10 @@ input {
     transform: scale(0.8);
     opacity: 0.8;
   }
-
   50% {
     transform: scale(1);
     opacity: 0.4;
   }
-
   100% {
     transform: scale(0.8);
     opacity: 0.8;
@@ -196,7 +188,6 @@ input {
     opacity: 0;
     transform: translateY(10px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
@@ -207,33 +198,8 @@ input {
   from {
     transform: translateY(100%);
   }
-
   to {
     transform: translateY(0);
-  }
-}
-
-@keyframes accordion-down {
-  from {
-    height: 0;
-    opacity: 0;
-  }
-
-  to {
-    height: var(--radix-accordion-content-height);
-    opacity: 1;
-  }
-}
-
-@keyframes accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-    opacity: 1;
-  }
-
-  to {
-    height: 0;
-    opacity: 0;
   }
 }
 
@@ -249,216 +215,6 @@ input {
   animation: pulse-ring 2s ease-in-out infinite;
 }
 
-/* LiveKit Control Bar Overrides */
-.lk-control-bar {
-  background-color: transparent !important;
-  border: none !important;
-  padding: 0 !important;
-  gap: 1rem !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  margin-top: 1rem !important;
-}
-
-/* Base style for ALL buttons - CIRCULAR & POP */
-.lk-control-bar .lk-button,
-.lk-control-bar .lk-disconnect-button,
-.lk-control-bar .lk-button-menu {
-  background-color: white !important;
-  color: #1c1917 !important;
-  /* Stone-900 */
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 50% !important;
-  height: 3.5rem !important;
-  /* 56px */
-  width: 3.5rem !important;
-
-  /* Flex Centering */
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-
-  position: relative !important;
-  top: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  overflow: visible !important;
-
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
-  cursor: pointer !important;
-}
-
-/* BETTER SYNC: Use a proper centered flex container instead of display: contents 
-   to ensure visibility and opacity are correctly propagated to children */
-.lk-control-bar .lk-button>.lk-button-inner,
-.lk-control-bar .lk-disconnect-button>.lk-button-inner,
-.lk-control-bar .lk-button-menu>.lk-button-inner {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 100% !important;
-  height: 100% !important;
-  pointer-events: none !important;
-}
-
-/* THE ICON: Force it to be a visible block centered in the flex container */
-.lk-control-bar .lk-button svg,
-.lk-control-bar .lk-button img,
-.lk-control-bar .lk-button [class*="icon"],
-.lk-control-bar .lk-disconnect-button svg,
-.lk-control-bar .lk-disconnect-button img,
-.lk-control-bar .lk-button-menu svg,
-.lk-control-bar .lk-button-menu [class*="icon"] {
-  display: block !important;
-  width: 1.5rem !important;
-  height: 1.5rem !important;
-  margin: auto !important;
-  color: inherit !important;
-  fill: currentColor !important;
-  pointer-events: none !important;
-  flex-shrink: 0 !important;
-
-  /* Apply requested fine-tuning: x +4, y -2 (5px up from previous) */
-  position: static !important;
-  transform: translate(4px, 4px) !important;
-}
-
-/* EXCEPTION: Menu Items (Maintain rectangular layout) */
-.lk-device-menu .lk-button,
-.lk-menu .lk-button {
-  width: 100% !important;
-  height: auto !important;
-  min-height: 44px !important;
-  border-radius: 8px !important;
-  aspect-ratio: auto !important;
-
-  /* Restore normal flex flow */
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  padding: 8px 12px !important;
-  position: relative !important;
-}
-
-/* Restore Menu Item children flow */
-.lk-device-menu .lk-button *,
-.lk-menu .lk-button * {
-  width: auto !important;
-  height: auto !important;
-  display: inline-flex !important;
-  position: static !important;
-  pointer-events: auto !important;
-}
-
-/* Menu Icons */
-.lk-device-menu svg,
-.lk-menu svg {
-  width: 1.25rem !important;
-  height: 1.25rem !important;
-  margin-right: 0.75rem !important;
-  display: block !important;
-}
-
-/* Hover Effects (Pop Animation) */
-.lk-control-bar .lk-button:hover,
-.lk-control-bar .lk-disconnect-button:hover,
-.lk-control-bar .lk-button-menu:hover {
-  background-color: #fafaf9 !important;
-  /* Stone-50 */
-  border-color: rgba(0, 0, 0, 0.2) !important;
-  transform: scale(1.15) !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  z-index: 50;
-}
-
-/* Disconnect Button (Red) */
-.lk-control-bar .lk-disconnect-button:hover {
-  background-color: #dc2626 !important;
-  border-color: #dc2626 !important;
-  color: white !important;
-}
-
-.lk-control-bar .lk-disconnect-button:hover svg {
-  color: white !important;
-}
-
-/* Active/Muted States */
-.lk-control-bar .lk-button[aria-pressed="true"] {
-  background-color: #1c1917 !important;
-  color: white !important;
-  border-color: #1c1917 !important;
-}
-
-.lk-control-bar .lk-button[data-muted="true"] {
-  background-color: #fee2e2 !important;
-  color: #ef4444 !important;
-  border-color: #fecaca !important;
-}
-
-.lk-control-bar .lk-button[data-muted="true"] svg {
-  color: #ef4444 !important;
-}
-
-/* Menu Dropdown Position: ALWAYS ABOVE */
-.lk-device-menu,
-.lk-menu {
-  background-color: white !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 12px !important;
-  padding: 8px !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
-
-  position: absolute !important;
-  top: auto !important;
-  bottom: 85px !important;
-  /* Slightly more gap */
-  left: 0 !important;
-  margin: 0 !important;
-
-  min-width: 280px !important;
-  width: max-content !important;
-  max-width: 350px !important;
-  z-index: 100 !important;
-
-  /* Smooth Entry Animation */
-  animation: dropdown-pop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
-  transform-origin: bottom left !important;
-}
-
-@keyframes dropdown-pop {
-  0% {
-    opacity: 0;
-    transform: scale(0.95) translateY(10px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* Sidebar expansion container refinement */
-.sidebar-submenu {
-  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.2s ease-in-out,
-    margin 0.3s ease-in-out !important;
-}
-
-/* Text alignment in menu */
-.lk-device-menu .lk-button span,
-.lk-menu .lk-button span {
-  text-align: left !important;
-  display: inline-block !important;
-}
-
-.lk-button-group {
-  position: relative !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
-}
 /* Chat Markdown Styles */
 .chat-markdown-light,
 .chat-markdown-dark {

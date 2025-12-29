@@ -140,34 +140,6 @@ export default function Sidebar({
   };
 
   return (
-    <div
-      className={`h-screen bg-stone-50 border-r border-black/5 flex flex-col transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"
-        }`}
-    >
-      {/* Header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-black/5">
-        {!isCollapsed && (
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-bold text-white">
-                {workspaceName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <span className="font-medium text-sm text-black truncate">
-              {workspaceName}
-            </span>
-          </div>
-        )}
-        <button
-          onClick={onToggleCollapse}
-          className={`p-1.5 rounded-md hover:bg-black/5 transition-colors text-black/40 hover:text-black/70 ${isCollapsed ? "mx-auto" : ""
-            }`}
-        >
-          <svg
-            className={`w-4 h-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
     <>
       <div
         className={`h-screen bg-stone-50 border-r border-black/5 flex flex-col transition-all duration-300 ${
@@ -226,18 +198,6 @@ export default function Sidebar({
           {/* 채팅 */}
           <div>
             <button
-              onClick={() => {
-                if (item.children) {
-                  toggleExpand(item.id);
-                } else {
-                  onSectionChange(item.id);
-                }
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all mb-0.5 ${activeSection === item.id || (item.children && activeSection.startsWith("call-"))
-                ? "bg-black/5 text-black"
-                : "text-black/60 hover:bg-black/[0.03] hover:text-black"
-                } ${isCollapsed ? "justify-center" : ""}`}
-              title={isCollapsed ? item.label : undefined}
               onClick={() => toggleExpand("chat")}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all mb-0.5 ${
                 isChatActive
@@ -251,14 +211,6 @@ export default function Sidebar({
               </svg>
               {!isCollapsed && (
                 <>
-                  <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
-                  {item.children && (
-                    <svg
-                      className={`w-4 h-4 transition-transform ${expandedItems.includes(item.id) ? "rotate-90" : ""
-                        }`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
                   <span className="text-sm font-medium flex-1 text-left">채팅</span>
                   <svg
                     className={`w-4 h-4 transition-transform ${expandedItems.includes("chat") ? "rotate-90" : ""}`}
@@ -337,33 +289,6 @@ export default function Sidebar({
               )}
             </button>
 
-            {/* Children with Smooth Animation */}
-            {item.children && !isCollapsed && (
-              <div
-                className={`sidebar-submenu overflow-hidden transition-all duration-300 ease-in-out ${expandedItems.includes(item.id)
-                  ? "max-h-40 opacity-100 mt-1 mb-2"
-                  : "max-h-0 opacity-0"
-                  }`}
-              >
-                <div className="ml-4 pl-4 border-l border-black/10">
-                  {item.children.map((child) => (
-                    <button
-                      key={child.id}
-                      onClick={() => {
-                        onSectionChange(child.id);
-                        setExpandedItems([]); // Close accordion on selection
-                      }}
-                      className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm ${activeSection === child.id
-                        ? "bg-black/5 text-black font-semibold"
-                        : "text-black/70 hover:bg-black/[0.03] hover:text-black font-medium"
-                        }`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full bg-current ${activeSection === child.id ? "opacity-100" : "opacity-30"
-                        }`} />
-                      {child.label}
-                    </button>
-                  ))}
-                </div>
             {/* 통화방 목록 */}
             {expandedItems.includes("calls") && !isCollapsed && (
               <div className="ml-4 pl-4 border-l border-black/10 mb-2">

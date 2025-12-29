@@ -23,21 +23,19 @@ import (
 
 // Server Fiber 서버 래퍼
 type Server struct {
-	app               *fiber.App
-	cfg               *config.Config
-	db                *gorm.DB
-	handler           *handler.AudioHandler
-	authHandler       *handler.AuthHandler
-	userHandler       *handler.UserHandler
-	workspaceHandler  *handler.WorkspaceHandler
-	chatHandler       *handler.ChatHandler
-	chatWSHandler     *handler.ChatWSHandler
-	meetingHandler    *handler.MeetingHandler
-	calendarHandler   *handler.CalendarHandler
-	storageHandler    *handler.StorageHandler
-	videoHandler      *handler.VideoHandler
-	whiteboardHandler *handler.WhiteboardHandler
-	jwtManager        *auth.JWTManager
+	app              *fiber.App
+	cfg              *config.Config
+	db               *gorm.DB
+	handler          *handler.AudioHandler
+	authHandler      *handler.AuthHandler
+	userHandler      *handler.UserHandler
+	workspaceHandler *handler.WorkspaceHandler
+	chatHandler      *handler.ChatHandler
+	chatWSHandler    *handler.ChatWSHandler
+	meetingHandler   *handler.MeetingHandler
+	calendarHandler  *handler.CalendarHandler
+	storageHandler   *handler.StorageHandler
+	jwtManager       *auth.JWTManager
 }
 
 // New 새 서버 인스턴스 생성
@@ -88,21 +86,19 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 	storageHandler := handler.NewStorageHandler(db, s3Service)
 
 	return &Server{
-		app:               app,
-		cfg:               cfg,
-		db:                db,
-		handler:           handler.NewAudioHandler(cfg),
-		authHandler:       authHandler,
-		userHandler:       userHandler,
-		workspaceHandler:  workspaceHandler,
-		chatHandler:       chatHandler,
-		chatWSHandler:     chatWSHandler,
-		meetingHandler:    meetingHandler,
-		calendarHandler:   calendarHandler,
-		storageHandler:    storageHandler,
-		videoHandler:      handler.NewVideoHandler(cfg, db),
-		whiteboardHandler: handler.NewWhiteboardHandler(db),
-		jwtManager:        jwtManager,
+		app:              app,
+		cfg:              cfg,
+		db:               db,
+		handler:          handler.NewAudioHandler(cfg),
+		authHandler:      authHandler,
+		userHandler:      userHandler,
+		workspaceHandler: workspaceHandler,
+		chatHandler:      chatHandler,
+		chatWSHandler:    chatWSHandler,
+		meetingHandler:   meetingHandler,
+		calendarHandler:  calendarHandler,
+		storageHandler:   storageHandler,
+		jwtManager:       jwtManager,
 	}
 }
 
@@ -209,14 +205,6 @@ func (s *Server) SetupRoutes() {
 	workspaceGroup.Post("/:workspaceId/files/presign", s.storageHandler.GetPresignedURL)
 	workspaceGroup.Post("/:workspaceId/files/confirm", s.storageHandler.ConfirmUpload)
 	workspaceGroup.Get("/:workspaceId/files/:fileId/download", s.storageHandler.GetDownloadURL)
-
-	// Video Call 라우트
-	s.app.Post("/api/video/token", auth.AuthMiddleware(s.jwtManager), s.videoHandler.GenerateToken)
-
-	// Whiteboard 라우트
-	whiteboardGroup := s.app.Group("/api/whiteboard", auth.AuthMiddleware(s.jwtManager))
-	whiteboardGroup.Get("", s.whiteboardHandler.GetWhiteboard)
-	whiteboardGroup.Post("", s.whiteboardHandler.HandleWhiteboard)
 
 	// WebSocket 업그레이드 체크 미들웨어
 	s.app.Use("/ws", func(c *fiber.Ctx) error {

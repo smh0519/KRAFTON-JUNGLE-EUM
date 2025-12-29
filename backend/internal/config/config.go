@@ -19,7 +19,6 @@ type Config struct {
 	AI        AIConfig
 	Auth      AuthConfig
 	S3        S3Config
-	LiveKit   LiveKitConfig
 }
 
 // S3Config AWS S3 설정
@@ -68,13 +67,6 @@ type AudioConfig struct {
 	ValidSampleRates  []uint32
 	MaxChannels       uint16
 	ValidBitDepths    []uint16
-}
-
-// LiveKitConfig LiveKit 설정
-type LiveKitConfig struct {
-	APIKey    string
-	APISecret string
-	Host      string
 }
 
 // CORSConfig CORS 설정
@@ -130,11 +122,6 @@ func Load() *Config {
 			AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 			PresignExpiry:   getDuration("S3_PRESIGN_EXPIRY", 15*time.Minute),
-		},
-		LiveKit: LiveKitConfig{
-			APIKey:    getEnv("LIVEKIT_API_KEY", "devkey"),
-			APISecret: getEnv("LIVEKIT_API_SECRET", "secret"),
-			Host:      getEnv("LIVEKIT_HOST", "ws://localhost:7880"),
 		},
 	}
 }
