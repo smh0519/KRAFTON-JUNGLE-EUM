@@ -23,20 +23,21 @@ import (
 
 // Server Fiber 서버 래퍼
 type Server struct {
-	app                 *fiber.App
-	cfg                 *config.Config
-	db                  *gorm.DB
-	handler             *handler.AudioHandler
-	authHandler         *handler.AuthHandler
-	userHandler         *handler.UserHandler
-	workspaceHandler    *handler.WorkspaceHandler
-	notificationHandler *handler.NotificationHandler
-	chatHandler         *handler.ChatHandler
-	chatWSHandler       *handler.ChatWSHandler
-	meetingHandler      *handler.MeetingHandler
-	calendarHandler     *handler.CalendarHandler
-	storageHandler *handler.StorageHandler
-	jwtManager     *auth.JWTManager
+	app                   *fiber.App
+	cfg                   *config.Config
+	db                    *gorm.DB
+	handler               *handler.AudioHandler
+	authHandler           *handler.AuthHandler
+	userHandler           *handler.UserHandler
+	workspaceHandler      *handler.WorkspaceHandler
+	notificationHandler   *handler.NotificationHandler
+	notificationWSHandler *handler.NotificationWSHandler
+	chatHandler           *handler.ChatHandler
+	chatWSHandler         *handler.ChatWSHandler
+	meetingHandler        *handler.MeetingHandler
+	calendarHandler       *handler.CalendarHandler
+	storageHandler        *handler.StorageHandler
+	jwtManager            *auth.JWTManager
 }
 
 // New 새 서버 인스턴스 생성
@@ -67,6 +68,7 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 	userHandler := handler.NewUserHandler(db)
 	workspaceHandler := handler.NewWorkspaceHandler(db)
 	notificationHandler := handler.NewNotificationHandler(db)
+	notificationWSHandler := handler.NewNotificationWSHandler()
 	chatHandler := handler.NewChatHandler(db)
 	chatWSHandler := handler.NewChatWSHandler(db)
 	meetingHandler := handler.NewMeetingHandler(db)
@@ -88,20 +90,21 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 	storageHandler := handler.NewStorageHandler(db, s3Service)
 
 	return &Server{
-		app:                 app,
-		cfg:                 cfg,
-		db:                  db,
-		handler:             handler.NewAudioHandler(cfg),
-		authHandler:         authHandler,
-		userHandler:         userHandler,
-		workspaceHandler:    workspaceHandler,
-		notificationHandler: notificationHandler,
-		chatHandler:         chatHandler,
-		chatWSHandler:       chatWSHandler,
-		meetingHandler:      meetingHandler,
-		calendarHandler: calendarHandler,
-		storageHandler:  storageHandler,
-		jwtManager:      jwtManager,
+		app:                   app,
+		cfg:                   cfg,
+		db:                    db,
+		handler:               handler.NewAudioHandler(cfg),
+		authHandler:           authHandler,
+		userHandler:           userHandler,
+		workspaceHandler:      workspaceHandler,
+		notificationHandler:   notificationHandler,
+		notificationWSHandler: notificationWSHandler,
+		chatHandler:           chatHandler,
+		chatWSHandler:         chatWSHandler,
+		meetingHandler:        meetingHandler,
+		calendarHandler:       calendarHandler,
+		storageHandler:        storageHandler,
+		jwtManager:            jwtManager,
 	}
 }
 
@@ -165,7 +168,7 @@ func (s *Server) SetupRoutes() {
 
 	// Notification 라우트 그룹 (인증 필요)
 	notificationGroup := s.app.Group("/api/notifications", auth.AuthMiddleware(s.jwtManager))
-	notificationGroup.Get("/", s.notificationHandler.GetMyNotifications)
+	notificationGroup.Get("", s.notificationHandler.GetMyNotifications)
 	notificationGroup.Post("/:id/accept", s.notificationHandler.AcceptInvitation)
 	notificationGroup.Post("/:id/decline", s.notificationHandler.DeclineInvitation)
 	notificationGroup.Post("/:id/read", s.notificationHandler.MarkAsRead)
@@ -223,6 +226,36 @@ func (s *Server) SetupRoutes() {
 		WriteBufferSize: s.cfg.WebSocket.WriteBufferSize,
 	}))
 
+	// WebSocket 알림 엔드포인트
+	s.app.Get("/ws/notifications", func(c *fiber.Ctx) error {
+		if !websocket.IsWebSocketUpgrade(c) {
+			return fiber.ErrUpgradeRequired
+		}
+
+		// 쿠키에서 JWT 토큰 추출
+		accessToken := c.Cookies("access_token")
+		if accessToken == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "authentication required",
+			})
+		}
+
+		// JWT 검증
+		claims, err := s.jwtManager.ValidateAccessToken(accessToken)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "invalid token",
+			})
+		}
+
+		c.Locals("userId", claims.UserID)
+
+		return c.Next()
+	}, websocket.New(s.notificationWSHandler.HandleWebSocket, websocket.Config{
+		ReadBufferSize:  4096,
+		WriteBufferSize: 4096,
+	}))
+
 	// WebSocket 채팅 엔드포인트
 	s.app.Get("/ws/chat/:workspaceId", func(c *fiber.Ctx) error {
 		if !websocket.IsWebSocketUpgrade(c) {
@@ -252,10 +285,10 @@ func (s *Server) SetupRoutes() {
 			})
 		}
 
-		// 멤버 확인
+		// 멤버 확인 (ACTIVE 상태만)
 		var count int64
 		s.db.Table("workspace_members").
-			Where("workspace_id = ? AND user_id = ?", workspaceID, claims.UserID).
+			Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, claims.UserID, "ACTIVE").
 			Count(&count)
 		if count == 0 {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{

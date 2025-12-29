@@ -1,7 +1,4 @@
 export const APP_CONFIG = {
-    // Notification polling interval in milliseconds
-    NOTIFICATION_POLL_INTERVAL: 5000, // 5 seconds
-
     // Search debounce delay in milliseconds
     SEARCH_DEBOUNCE_DELAY: 300, // 300ms
 

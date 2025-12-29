@@ -280,42 +280,50 @@ func (h *WorkspaceHandler) AddMembers(c *fiber.Ctx) error {
 	var inviter model.User
 	h.db.First(&inviter, claims.UserID)
 
-	// 초대장 생성
-	invitedCount := 0
-	for _, memberID := range req.MemberIDs {
-		// 이미 멤버인 경우 건너뛰기
-		if existingMembers[memberID] {
-			continue
-		}
+	// 트랜잭션으로 초대장 생성
+	var invitedMemberIDs []int64
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		for _, memberID := range req.MemberIDs {
+			// 이미 멤버인 경우 건너뛰기
+			if existingMembers[memberID] {
+				continue
+			}
 
-		// 사용자 존재 확인
-		var user model.User
-		if err := h.db.First(&user, memberID).Error; err != nil {
-			continue
-		}
+			// 사용자 존재 확인
+			var user model.User
+			if err := tx.First(&user, memberID).Error; err != nil {
+				continue
+			}
 
-		// PENDING 상태로 멤버 생성
-		member := model.WorkspaceMember{
-			WorkspaceID: workspace.ID,
-			UserID:      memberID,
-			Status:      model.MemberStatusPending.String(),
-		}
-		if err := h.db.Create(&member).Error; err != nil {
-			continue
-		}
+			// PENDING 상태로 멤버 생성
+			member := model.WorkspaceMember{
+				WorkspaceID: workspace.ID,
+				UserID:      memberID,
+				Status:      model.MemberStatusPending.String(),
+			}
+			if err := tx.Create(&member).Error; err != nil {
+				continue
+			}
 
-		// 알림 생성
-		if err := CreateWorkspaceInviteNotification(h.db, claims.UserID, memberID, workspace.ID, workspace.Name, inviter.Nickname); err != nil {
-			// 알림 생성 실패해도 초대는 성공으로 처리
-			continue
+			invitedMemberIDs = append(invitedMemberIDs, memberID)
 		}
+		return nil
+	})
 
-		invitedCount++
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to add members",
+		})
+	}
+
+	// 트랜잭션 완료 후 알림 생성 (알림 실패가 멤버 추가에 영향 X)
+	for _, memberID := range invitedMemberIDs {
+		CreateWorkspaceInviteNotification(h.db, claims.UserID, memberID, workspace.ID, workspace.Name, inviter.Nickname)
 	}
 
 	return c.JSON(fiber.Map{
 		"message":       "invitations sent successfully",
-		"invited_count": invitedCount,
+		"invited_count": len(invitedMemberIDs),
 	})
 }
 

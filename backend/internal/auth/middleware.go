@@ -3,16 +3,36 @@ package auth
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
 
+// ErrNoClaims claims가 없을 때 반환되는 에러
+var ErrNoClaims = errors.New("no claims in context")
+
 // GenerateCSRFToken CSRF 토큰 생성
 func GenerateCSRFToken() string {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// crypto/rand 실패 시 에러 로깅 (매우 드문 경우)
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return hex.EncodeToString(bytes)
+}
+
+// GetClaimsFromContext 컨텍스트에서 Claims를 안전하게 추출
+func GetClaimsFromContext(c *fiber.Ctx) (*Claims, error) {
+	claimsInterface := c.Locals("claims")
+	if claimsInterface == nil {
+		return nil, ErrNoClaims
+	}
+	claims, ok := claimsInterface.(*Claims)
+	if !ok || claims == nil {
+		return nil, ErrNoClaims
+	}
+	return claims, nil
 }
 
 // AuthMiddleware JWT 인증 미들웨어

@@ -1,7 +1,6 @@
 "use client";
 
 import { forwardRef } from "react";
-import { TeamMember } from "../../types";
 import { teamMembers } from "../../data";
 
 interface TeamSectionProps {

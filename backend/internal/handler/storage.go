@@ -382,8 +382,18 @@ func (h *StorageHandler) UploadFile(c *fiber.Ctx) error {
 // DeleteFile 파일/폴더 삭제
 func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	fileID, _ := c.ParamsInt("fileId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	fileID, err := c.ParamsInt("fileId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid file id",
+		})
+	}
 
 	// 멤버 확인
 	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
@@ -393,7 +403,7 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 	}
 
 	var file model.WorkspaceFile
-	err := h.db.Where("id = ? AND workspace_id = ?", fileID, workspaceID).First(&file).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", fileID, workspaceID).First(&file).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "file not found",
@@ -410,20 +420,35 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 		})
 	}
 
-	// S3에서 파일 삭제
-	if h.s3 != nil && file.S3Key != nil && *file.S3Key != "" {
-		if err := h.s3.DeleteFile(*file.S3Key); err != nil {
-			// S3 삭제 실패는 로그만 남기고 계속 진행
-			// log.Printf("Failed to delete S3 object: %v", err)
+	// 트랜잭션으로 DB 삭제 (S3 삭제는 별도 처리)
+	var s3KeysToDelete []string
+
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		// 폴더인 경우 하위 항목도 삭제
+		if file.Type == "FOLDER" {
+			h.deleteRecursiveWithTx(tx, file.ID, &s3KeysToDelete)
+		}
+
+		// S3 키 수집
+		if file.S3Key != nil && *file.S3Key != "" {
+			s3KeysToDelete = append(s3KeysToDelete, *file.S3Key)
+		}
+
+		return tx.Delete(&file).Error
+	})
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to delete file",
+		})
+	}
+
+	// DB 삭제 성공 후 S3 파일 삭제 (실패해도 무시)
+	if h.s3 != nil {
+		for _, key := range s3KeysToDelete {
+			h.s3.DeleteFile(key)
 		}
 	}
-
-	// 폴더인 경우 하위 항목도 삭제
-	if file.Type == "FOLDER" {
-		h.deleteRecursive(file.ID)
-	}
-
-	h.db.Delete(&file)
 
 	return c.JSON(fiber.Map{
 		"message": "file deleted",
@@ -433,8 +458,18 @@ func (h *StorageHandler) DeleteFile(c *fiber.Ctx) error {
 // RenameFile 파일/폴더 이름 변경
 func (h *StorageHandler) RenameFile(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	fileID, _ := c.ParamsInt("fileId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	fileID, err := c.ParamsInt("fileId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid file id",
+		})
+	}
 
 	// 멤버 확인
 	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
@@ -444,7 +479,7 @@ func (h *StorageHandler) RenameFile(c *fiber.Ctx) error {
 	}
 
 	var file model.WorkspaceFile
-	err := h.db.Where("id = ? AND workspace_id = ?", fileID, workspaceID).First(&file).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", fileID, workspaceID).First(&file).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "file not found",
@@ -482,8 +517,18 @@ func (h *StorageHandler) GetDownloadURL(c *fiber.Ctx) error {
 	}
 
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	fileID, _ := c.ParamsInt("fileId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	fileID, err := c.ParamsInt("fileId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid file id",
+		})
+	}
 
 	// 멤버 확인
 	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
@@ -493,7 +538,7 @@ func (h *StorageHandler) GetDownloadURL(c *fiber.Ctx) error {
 	}
 
 	var file model.WorkspaceFile
-	err := h.db.Where("id = ? AND workspace_id = ?", fileID, workspaceID).First(&file).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", fileID, workspaceID).First(&file).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "file not found",
@@ -529,25 +574,25 @@ func (h *StorageHandler) GetDownloadURL(c *fiber.Ctx) error {
 func (h *StorageHandler) isWorkspaceMember(workspaceID, userID int64) bool {
 	var count int64
 	h.db.Model(&model.WorkspaceMember{}).
-		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
+		Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, userID, model.MemberStatusActive.String()).
 		Count(&count)
 	return count > 0
 }
 
-func (h *StorageHandler) deleteRecursive(folderID int64) {
+func (h *StorageHandler) deleteRecursiveWithTx(tx *gorm.DB, folderID int64, s3Keys *[]string) {
 	var children []model.WorkspaceFile
-	h.db.Where("parent_folder_id = ?", folderID).Find(&children)
+	tx.Where("parent_folder_id = ?", folderID).Find(&children)
 
 	for _, child := range children {
-		// S3 파일 삭제
-		if h.s3 != nil && child.S3Key != nil && *child.S3Key != "" {
-			h.s3.DeleteFile(*child.S3Key)
+		// S3 키 수집 (삭제는 트랜잭션 완료 후)
+		if child.S3Key != nil && *child.S3Key != "" {
+			*s3Keys = append(*s3Keys, *child.S3Key)
 		}
 
 		if child.Type == "FOLDER" {
-			h.deleteRecursive(child.ID)
+			h.deleteRecursiveWithTx(tx, child.ID, s3Keys)
 		}
-		h.db.Delete(&child)
+		tx.Delete(&child)
 	}
 }
 

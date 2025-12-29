@@ -9,6 +9,7 @@ interface UseScrollNavigationProps {
 interface UseScrollNavigationReturn {
   currentSlide: number;
   sectionRefs: React.MutableRefObject<(HTMLElement | null)[]>;
+  setSectionRef: (index: number) => (el: HTMLElement | null) => void;
   scrollToSlide: (index: number) => void;
 }
 
@@ -21,6 +22,10 @@ export function useScrollNavigation({
 
   const scrollToSlide = useCallback((index: number) => {
     sectionRefs.current[index]?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  const setSectionRef = useCallback((index: number) => (el: HTMLElement | null) => {
+    sectionRefs.current[index] = el;
   }, []);
 
   // Check if refs are ready after initial render
@@ -83,6 +88,7 @@ export function useScrollNavigation({
   return {
     currentSlide,
     sectionRefs,
+    setSectionRef,
     scrollToSlide,
   };
 }

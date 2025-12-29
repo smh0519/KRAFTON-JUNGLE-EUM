@@ -239,7 +239,45 @@ func CreateNotification(db *gorm.DB, receiverID int64, senderID *int64, notifica
 		RelatedType: relatedType,
 		RelatedID:   relatedID,
 	}
-	return db.Create(&notification).Error
+
+	if err := db.Create(&notification).Error; err != nil {
+		return err
+	}
+
+	// WebSocket으로 실시간 푸시
+	go func() {
+		// Sender 정보 로드
+		var sender *model.User
+		if senderID != nil {
+			var user model.User
+			if err := db.First(&user, *senderID).Error; err == nil {
+				sender = &user
+			}
+		}
+
+		payload := NotificationPayload{
+			ID:          notification.ID,
+			Type:        notification.Type,
+			Content:     notification.Content,
+			IsRead:      notification.IsRead,
+			RelatedType: notification.RelatedType,
+			RelatedID:   notification.RelatedID,
+			CreatedAt:   notification.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+
+		if sender != nil {
+			payload.Sender = &UserResponse{
+				ID:         sender.ID,
+				Email:      sender.Email,
+				Nickname:   sender.Nickname,
+				ProfileImg: sender.ProfileImg,
+			}
+		}
+
+		GetNotificationWSHandler().SendToUser(receiverID, payload)
+	}()
+
+	return nil
 }
 
 // 헬퍼: 초대 알림 생성

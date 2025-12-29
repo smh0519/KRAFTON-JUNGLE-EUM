@@ -82,6 +82,12 @@ func Load() *Config {
 		log.Println("ℹ️ No .env file found, using environment variables")
 	}
 
+	// 필수 환경 변수 검증
+	jwtSecret := getRequiredEnv("JWT_SECRET")
+	if jwtSecret == "change-this-secret-in-production" {
+		log.Fatal("🚨 CRITICAL: JWT_SECRET must be changed from default value in production!")
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port:         getEnv("PORT", ":8080"),
@@ -110,7 +116,7 @@ func Load() *Config {
 			Enabled:    getBool("AI_ENABLED", false),
 		},
 		Auth: AuthConfig{
-			JWTSecret:          getEnv("JWT_SECRET", "change-this-secret-in-production"),
+			JWTSecret:          jwtSecret,
 			AccessTokenExpiry:  getDuration("ACCESS_TOKEN_EXPIRY", 1*time.Hour),
 			RefreshTokenExpiry: getDuration("REFRESH_TOKEN_EXPIRY", 7*24*time.Hour),
 			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
@@ -124,6 +130,15 @@ func Load() *Config {
 			PresignExpiry:   getDuration("S3_PRESIGN_EXPIRY", 15*time.Minute),
 		},
 	}
+}
+
+// getRequiredEnv 필수 환경 변수 조회 (없으면 Fatal)
+func getRequiredEnv(key string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		log.Fatalf("🚨 CRITICAL: Required environment variable %s is not set!", key)
+	}
+	return value
 }
 
 // getEnv 환경 변수 조회 (기본값 지원)

@@ -188,7 +188,7 @@ interface NotificationsResponse {
 // 화이트보드 관련 타입
 interface WhiteboardResponse {
   success: boolean;
-  history: any[];
+  history: unknown[];
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -539,7 +539,7 @@ class ApiClient {
     return this.request<WhiteboardResponse>(`/api/whiteboard?room=${roomName}`);
   }
 
-  async handleWhiteboardAction(roomName: string, action: { type?: string; stroke?: any }): Promise<WhiteboardResponse> {
+  async handleWhiteboardAction(roomName: string, action: { type?: string; stroke?: unknown }): Promise<WhiteboardResponse> {
     return this.request<WhiteboardResponse>('/api/whiteboard', {
       method: 'POST',
       body: JSON.stringify({ room: roomName, ...action }),

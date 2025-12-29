@@ -290,7 +290,12 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 // GetMe 현재 사용자 정보
 func (h *AuthHandler) GetMe(c *fiber.Ctx) error {
-	claims := c.Locals("claims").(*auth.Claims)
+	claims, err := auth.GetClaimsFromContext(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "authentication required",
+		})
+	}
 
 	var user model.User
 	if err := h.db.First(&user, "id = ?", claims.UserID).Error; err != nil {

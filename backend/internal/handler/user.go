@@ -29,7 +29,12 @@ type SearchUsersResponse struct {
 // SearchUsers 유저 검색 (닉네임 또는 이메일)
 func (h *UserHandler) SearchUsers(c *fiber.Ctx) error {
 	// 현재 로그인한 사용자 정보
-	claims := c.Locals("claims").(*auth.Claims)
+	claims, err := auth.GetClaimsFromContext(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "authentication required",
+		})
+	}
 
 	// 검색어 가져오기
 	query := strings.TrimSpace(c.Query("q"))

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect, useState } from "react";
+import { useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { slides } from "./data";
 import {
@@ -25,15 +25,13 @@ import { CustomGoogleLoginButton } from "../lib/google-login";
 export function LandingPage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [showContent, setShowContent] = useState(false);
+
+  // 파생 상태: 로딩 완료 + 미인증 시 콘텐츠 표시
+  const showContent = useMemo(() => !isLoading && !isAuthenticated, [isLoading, isAuthenticated]);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        router.push("/workspace");
-      } else {
-        setShowContent(true);
-      }
+    if (!isLoading && isAuthenticated) {
+      router.push("/workspace");
     }
   }, [isLoading, isAuthenticated, router]);
 
@@ -49,7 +47,7 @@ export function LandingPage() {
   }, []);
 
   // Navigation
-  const { currentSlide, sectionRefs, scrollToSlide } = useScrollNavigation({
+  const { currentSlide, setSectionRef, scrollToSlide } = useScrollNavigation({
     totalSlides: slides.length,
   });
 
@@ -108,15 +106,15 @@ export function LandingPage() {
           <div className="w-[35%] flex flex-col">
             {/* Section 0: Intro */}
             <IntroSection
-              ref={(el) => { sectionRefs.current[0] = el; }}
+              ref={setSectionRef(0)}
               currentLogo={currentLogo}
             />
 
             {/* Section 1: Silent Experts */}
-            <SilentExpertsSection ref={(el) => { sectionRefs.current[1] = el; }} />
+            <SilentExpertsSection ref={setSectionRef(1)} />
 
             {/* Section 2: Passive Meeting */}
-            <PassiveMeetingSection ref={(el) => { sectionRefs.current[2] = el; }} />
+            <PassiveMeetingSection ref={setSectionRef(2)} />
           </div>
 
           {/* Right side - sticky video */}
@@ -139,13 +137,13 @@ export function LandingPage() {
 
         {/* Section 3: Whiteboard */}
         <WhiteboardSection
-          ref={(el) => { sectionRefs.current[3] = el; }}
+          ref={setSectionRef(3)}
           isActive={currentSlide === 3}
         />
 
         {/* Section 4: Speech-to-Speech */}
         <SpeechToSpeechSection
-          ref={(el) => { sectionRefs.current[4] = el; }}
+          ref={setSectionRef(4)}
           activeSpeaker={activeSpeaker}
           activeChunkIndex={activeChunkIndex}
           translatedChunkIndex={translatedChunkIndex}
@@ -154,13 +152,13 @@ export function LandingPage() {
 
         {/* Section 5: Meeting Notes */}
         <MeetingNotesSection
-          ref={(el) => { sectionRefs.current[5] = el; }}
+          ref={setSectionRef(5)}
           notesStep={notesStep}
         />
 
         {/* Section 6: CTA */}
         <CTASection
-          ref={(el) => { sectionRefs.current[6] = el; }}
+          ref={setSectionRef(6)}
           isActive={currentSlide === 6}
         />
       </div>

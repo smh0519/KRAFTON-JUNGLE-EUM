@@ -75,10 +75,14 @@ export function GoogleLoginButton({
   );
 
   useEffect(() => {
-    // 스크립트 로드 확인
+    let isMounted = true;
+
+    // 스크립트 로드 확인 (비동기로 상태 업데이트하여 cascade 방지)
     if (window.google) {
-      setIsScriptLoaded(true);
-      return;
+      Promise.resolve().then(() => {
+        if (isMounted) setIsScriptLoaded(true);
+      });
+      return () => { isMounted = false; };
     }
 
     // Google Identity Services 스크립트 로드
@@ -86,11 +90,16 @@ export function GoogleLoginButton({
     script.src = "https://accounts.google.com/gsi/client";
     script.async = true;
     script.defer = true;
-    script.onload = () => setIsScriptLoaded(true);
+    script.onload = () => {
+      if (isMounted) {
+        setIsScriptLoaded(true);
+      }
+    };
     document.body.appendChild(script);
 
     return () => {
-      // Cleanup: 스크립트 제거하지 않음 (다른 컴포넌트에서 사용할 수 있음)
+      isMounted = false;
+      // 스크립트 제거하지 않음 (다른 컴포넌트에서 사용할 수 있음)
     };
   }, []);
 
@@ -150,12 +159,15 @@ export function CustomGoogleLoginButton({
 
   // Google Identity Services 스크립트 로드 및 숨겨진 버튼 렌더링
   useEffect(() => {
+    let isMounted = true;
+
     const initializeGoogle = () => {
-      if (!window.google || !GOOGLE_CLIENT_ID || !hiddenButtonRef.current) return;
+      if (!isMounted || !window.google || !GOOGLE_CLIENT_ID || !hiddenButtonRef.current) return;
 
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: async (response: GoogleCredentialResponse) => {
+          if (!isMounted) return;
           try {
             setIsLoading(true);
             await loginWithGoogle(response.credential);
@@ -163,7 +175,9 @@ export function CustomGoogleLoginButton({
           } catch (error) {
             onError?.(error instanceof Error ? error : new Error("Login failed"));
           } finally {
-            setIsLoading(false);
+            if (isMounted) {
+              setIsLoading(false);
+            }
           }
         },
         auto_select: false,
@@ -177,20 +191,25 @@ export function CustomGoogleLoginButton({
         width: 200,
       });
 
-      setIsScriptLoaded(true);
+      if (isMounted) {
+        setIsScriptLoaded(true);
+      }
     };
 
     if (window.google) {
       initializeGoogle();
-      return;
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = initializeGoogle;
+      document.body.appendChild(script);
     }
 
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = initializeGoogle;
-    document.body.appendChild(script);
+    return () => {
+      isMounted = false;
+    };
   }, [loginWithGoogle, onSuccess, onError]);
 
   const handleClick = useCallback(() => {

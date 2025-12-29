@@ -79,10 +79,20 @@ func (h *ChatWSHandler) getOrCreateRoom(workspaceID int64) *ChatRoom {
 
 // HandleWebSocket WebSocket 연결 처리
 func (h *ChatWSHandler) HandleWebSocket(c *websocket.Conn) {
-	// 쿼리 파라미터에서 정보 추출
-	workspaceID := c.Locals("workspaceId").(int64)
-	userID := c.Locals("userId").(int64)
-	nickname := c.Locals("nickname").(string)
+	// 쿼리 파라미터에서 정보 추출 (안전한 타입 변환)
+	workspaceIDInterface := c.Locals("workspaceId")
+	userIDInterface := c.Locals("userId")
+	nicknameInterface := c.Locals("nickname")
+
+	workspaceID, ok1 := workspaceIDInterface.(int64)
+	userID, ok2 := userIDInterface.(int64)
+	nickname, ok3 := nicknameInterface.(string)
+
+	if !ok1 || !ok2 || !ok3 {
+		c.WriteMessage(websocket.TextMessage, []byte(`{"type":"error","message":"invalid session"}`))
+		c.Close()
+		return
+	}
 
 	room := h.getOrCreateRoom(workspaceID)
 

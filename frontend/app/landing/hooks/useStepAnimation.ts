@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 
 interface StepTiming {
   step: number;
@@ -26,18 +26,20 @@ export function useStepAnimation({
   const stepsKey = JSON.stringify(steps);
 
   useEffect(() => {
+    const timers: NodeJS.Timeout[] = [];
+
     if (isActive) {
-      setCurrentStep(0);
-      const timers: NodeJS.Timeout[] = [];
+      // 비동기로 초기화하여 cascade 방지
+      timers.push(setTimeout(() => setCurrentStep(0), 0));
 
       steps.forEach(({ step, delay }) => {
         timers.push(setTimeout(() => setCurrentStep(step), delay));
       });
-
-      return () => timers.forEach((t) => clearTimeout(t));
     } else {
-      setCurrentStep(0);
+      timers.push(setTimeout(() => setCurrentStep(0), 0));
     }
+
+    return () => timers.forEach((t) => clearTimeout(t));
   }, [isActive, stepsKey]);
 
   return { currentStep };

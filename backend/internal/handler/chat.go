@@ -185,7 +185,7 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 func (h *ChatHandler) isWorkspaceMember(workspaceID, userID int64) bool {
 	var count int64
 	h.db.Model(&model.WorkspaceMember{}).
-		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
+		Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, userID, model.MemberStatusActive.String()).
 		Count(&count)
 	return count > 0
 }

@@ -222,11 +222,21 @@ func (h *CalendarHandler) CreateEvent(c *fiber.Ctx) error {
 // UpdateEvent 이벤트 수정
 func (h *CalendarHandler) UpdateEvent(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	eventID, _ := c.ParamsInt("eventId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	eventID, err := c.ParamsInt("eventId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid event id",
+		})
+	}
 
 	var event model.CalendarEvent
-	err := h.db.Where("id = ? AND workspace_id = ?", eventID, workspaceID).First(&event).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", eventID, workspaceID).First(&event).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "event not found",
@@ -275,11 +285,21 @@ func (h *CalendarHandler) UpdateEvent(c *fiber.Ctx) error {
 // DeleteEvent 이벤트 삭제
 func (h *CalendarHandler) DeleteEvent(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	eventID, _ := c.ParamsInt("eventId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	eventID, err := c.ParamsInt("eventId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid event id",
+		})
+	}
 
 	var event model.CalendarEvent
-	err := h.db.Where("id = ? AND workspace_id = ?", eventID, workspaceID).First(&event).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", eventID, workspaceID).First(&event).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "event not found",
@@ -305,8 +325,18 @@ func (h *CalendarHandler) DeleteEvent(c *fiber.Ctx) error {
 // UpdateAttendeeStatus 참석 상태 변경
 func (h *CalendarHandler) UpdateAttendeeStatus(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	eventID, _ := c.ParamsInt("eventId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	eventID, err := c.ParamsInt("eventId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid event id",
+		})
+	}
 
 	// 멤버 확인
 	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
@@ -331,7 +361,7 @@ func (h *CalendarHandler) UpdateAttendeeStatus(c *fiber.Ctx) error {
 	}
 
 	var attendee model.EventAttendee
-	err := h.db.Where("event_id = ? AND user_id = ?", eventID, claims.UserID).First(&attendee).Error
+	err = h.db.Where("event_id = ? AND user_id = ?", eventID, claims.UserID).First(&attendee).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "you are not an attendee of this event",
@@ -351,7 +381,7 @@ func (h *CalendarHandler) UpdateAttendeeStatus(c *fiber.Ctx) error {
 func (h *CalendarHandler) isWorkspaceMember(workspaceID, userID int64) bool {
 	var count int64
 	h.db.Model(&model.WorkspaceMember{}).
-		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
+		Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, userID, model.MemberStatusActive.String()).
 		Count(&count)
 	return count > 0
 }

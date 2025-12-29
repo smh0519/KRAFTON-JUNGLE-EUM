@@ -162,6 +162,9 @@ export default function ChatSection({ workspaceId }: ChatSectionProps) {
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
       }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
       if (wsRef.current) {
         wsRef.current.close();
       }

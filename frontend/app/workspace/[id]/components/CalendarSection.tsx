@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { apiClient, CalendarEvent, CreateEventRequest } from "../../../lib/api";
 
 interface CalendarSectionProps {
   workspaceId: number;
 }
-
-const today = new Date();
 
 const colorOptions = [
   { value: "bg-blue-500", label: "파랑" },
@@ -19,8 +17,11 @@ const colorOptions = [
 ];
 
 export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
+  // today를 useMemo로 래핑하여 컴포넌트 마운트 시 계산
+  const today = useMemo(() => new Date(), []);
+
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(today);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<"month" | "week">("month");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,6 +64,11 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
   useEffect(() => {
     loadEvents();
   }, [loadEvents]);
+
+  // 컴포넌트 마운트 시 오늘 날짜 선택
+  useEffect(() => {
+    setSelectedDate(today);
+  }, [today]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();

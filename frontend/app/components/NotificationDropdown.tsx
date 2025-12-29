@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiClient, Notification } from "../lib/api";
 import { NotificationType } from "../lib/constants";
-import { APP_CONFIG } from "../lib/config";
+import { useNotificationWebSocket } from "../hooks/useNotificationWebSocket";
 
 interface NotificationDropdownProps {
     onInvitationAccepted?: (workspaceId: number) => void;
@@ -17,7 +17,7 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // 알림 목록 가져오기
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
         try {
             setIsLoading(true);
             const response = await apiClient.getMyNotifications();
@@ -27,21 +27,40 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
+
+    // WebSocket으로 실시간 알림 수신
+    const handleNewNotification = useCallback((notification: Notification) => {
+        setNotifications(prev => {
+            // 중복 방지
+            if (prev.some(n => n.id === notification.id)) {
+                return prev;
+            }
+            // 새 알림을 맨 앞에 추가
+            return [notification, ...prev];
+        });
+    }, []);
+
+    useNotificationWebSocket({
+        onNotification: handleNewNotification,
+        enabled: true,
+    });
+
+    // 초기 로드 (한 번만)
+    const initialLoadRef = useRef(false);
+    useEffect(() => {
+        if (!initialLoadRef.current) {
+            initialLoadRef.current = true;
+            fetchNotifications();
+        }
+    }, [fetchNotifications]);
 
     // 드롭다운 열릴 때 알림 목록 가져오기
     useEffect(() => {
         if (isOpen) {
             fetchNotifications();
         }
-    }, [isOpen]);
-
-    // 주기적으로 알림 목록 갱신
-    useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, APP_CONFIG.NOTIFICATION_POLL_INTERVAL);
-        return () => clearInterval(interval);
-    }, []);
+    }, [isOpen, fetchNotifications]);
 
     // 외부 클릭 시 드롭다운 닫기
     useEffect(() => {
@@ -97,9 +116,6 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         if (diffHours < 24) return `${diffHours}시간 전`;
         return `${diffDays}일 전`;
     };
-
-    // 초대 알림 필터링
-    const inviteNotifications = notifications.filter(n => n.type === NotificationType.WORKSPACE_INVITE);
 
     return (
         <div ref={dropdownRef} className="relative">

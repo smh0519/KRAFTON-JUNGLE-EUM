@@ -219,11 +219,21 @@ func (h *MeetingHandler) GetMeeting(c *fiber.Ctx) error {
 // StartMeeting 미팅 시작
 func (h *MeetingHandler) StartMeeting(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	meetingID, _ := c.ParamsInt("meetingId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	meetingID, err := c.ParamsInt("meetingId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid meeting id",
+		})
+	}
 
 	var meeting model.Meeting
-	err := h.db.Where("id = ? AND workspace_id = ?", meetingID, workspaceID).First(&meeting).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", meetingID, workspaceID).First(&meeting).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "meeting not found",
@@ -250,11 +260,21 @@ func (h *MeetingHandler) StartMeeting(c *fiber.Ctx) error {
 // EndMeeting 미팅 종료
 func (h *MeetingHandler) EndMeeting(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
-	workspaceID, _ := c.ParamsInt("workspaceId")
-	meetingID, _ := c.ParamsInt("meetingId")
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+	meetingID, err := c.ParamsInt("meetingId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid meeting id",
+		})
+	}
 
 	var meeting model.Meeting
-	err := h.db.Where("id = ? AND workspace_id = ?", meetingID, workspaceID).First(&meeting).Error
+	err = h.db.Where("id = ? AND workspace_id = ?", meetingID, workspaceID).First(&meeting).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "meeting not found",
@@ -282,7 +302,7 @@ func (h *MeetingHandler) EndMeeting(c *fiber.Ctx) error {
 func (h *MeetingHandler) isWorkspaceMember(workspaceID, userID int64) bool {
 	var count int64
 	h.db.Model(&model.WorkspaceMember{}).
-		Where("workspace_id = ? AND user_id = ?", workspaceID, userID).
+		Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, userID, model.MemberStatusActive.String()).
 		Count(&count)
 	return count > 0
 }

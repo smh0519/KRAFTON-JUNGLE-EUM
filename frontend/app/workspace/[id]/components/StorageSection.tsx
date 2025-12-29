@@ -402,7 +402,6 @@ export default function StorageSection({ workspaceId }: StorageSectionProps) {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       if (item.kind === 'file') {
-        // @ts-ignore - webkitGetAsEntry is non-standard but widely supported
         const entry = item.webkitGetAsEntry?.();
         if (entry) {
           promises.push(scanEntry(entry));
@@ -460,7 +459,6 @@ export default function StorageSection({ workspaceId }: StorageSectionProps) {
         ref={folderInputRef}
         onChange={handleFolderUpload}
         className="hidden"
-        // @ts-ignore
         webkitdirectory="true"
         directory="true"
       />

@@ -113,7 +113,7 @@ export default function ParticipantTile({ participant, isLocal = false }: Partic
                 <div className="flex items-center gap-2">
                     <span className="text-white font-medium text-sm truncate">
                         {participant.identity}
-                        {isLocal && ' (??'}
+                        {isLocal && ' (나)'}
                     </span>
 
                     {/* Mute indicator */}
@@ -132,7 +132,7 @@ export default function ParticipantTile({ participant, isLocal = false }: Partic
             {isLocal && (
                 <div className="absolute top-3 right-3">
                     <span className="px-2 py-1 bg-purple-500/80 text-white text-xs font-medium rounded-full backdrop-blur-sm">
-                        ??
+                        나
                     </span>
                 </div>
             )}
