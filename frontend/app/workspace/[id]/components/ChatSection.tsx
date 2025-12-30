@@ -38,7 +38,6 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isSending, setIsSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [lastSentTime, setLastSentTime] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -54,6 +53,12 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
   const isComposingRef = useRef(false);
   const isInitialLoadRef = useRef(true);
   const isAutoScrollingRef = useRef(false);
+  const userIdRef = useRef<number | undefined>(user?.id);
+
+  // user.id 변경 시 ref 업데이트
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user?.id]);
 
   const SPAM_COOLDOWN = 1000;
 
@@ -78,11 +83,10 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
 
       const response = await apiClient.getChatRoomMessages(workspaceId, roomId, MESSAGES_PER_PAGE, 0);
 
-      // 서버에서 최신순으로 오면 reverse해서 오래된 순으로 정렬
-      const sortedMessages = [...response.messages].reverse();
-      setMessages(sortedMessages);
+      // 서버에서 이미 오래된순(ASC)으로 정렬하여 반환
+      setMessages(response.messages);
       setTotalMessages(response.total);
-      setHasMore(response.messages.length < response.total);
+      setHasMore(response.messages.length >= MESSAGES_PER_PAGE);
     } catch (error) {
       console.error("Failed to load messages:", error);
     } finally {
@@ -106,16 +110,15 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
       const response = await apiClient.getChatRoomMessages(workspaceId, roomId, MESSAGES_PER_PAGE, offset);
 
       if (response.messages.length > 0) {
-        // 오래된 메시지를 앞에 추가 (reverse해서 오래된 순으로)
-        const olderMessages = [...response.messages].reverse();
+        // 서버에서 이미 오래된순(ASC)으로 정렬하여 반환
         setMessages(prev => {
           // 기존 메시지 ID Set 생성
           const existingIds = new Set(prev.map(m => m.id));
           // 중복되지 않은 메시지만 필터링
-          const uniqueOlderMessages = olderMessages.filter(m => !existingIds.has(m.id));
+          const uniqueOlderMessages = response.messages.filter(m => !existingIds.has(m.id));
           return [...uniqueOlderMessages, ...prev];
         });
-        setHasMore(messages.length + response.messages.length < response.total);
+        setHasMore(response.messages.length >= MESSAGES_PER_PAGE);
 
         // 스크롤 위치 유지
         requestAnimationFrame(() => {
@@ -193,9 +196,10 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
 
           switch (data.type) {
             case "message":
-              if (data.payload && data.payload.id) {
+              if (data.payload) {
+                const msgId = data.payload.id || Date.now() + Math.random();
                 const newMsg: ChatMessage = {
-                  id: data.payload.id,
+                  id: msgId,
                   meeting_id: roomId,
                   sender_id: data.payload.sender_id,
                   message: data.payload.message || "",
@@ -207,12 +211,36 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
                     nickname: data.payload.nickname || "",
                   },
                 };
+
+                // 내 메시지인 경우 optimistic 메시지를 대체
+                const isMyMsg = data.payload.sender_id === userIdRef.current;
+
                 setMessages((prev) => {
-                  if (prev.some((m) => m.id === newMsg.id)) return prev;
+                  // 이미 같은 ID가 있으면 무시
+                  if (data.payload?.id && prev.some((m) => m.id === msgId)) return prev;
+
+                  if (isMyMsg) {
+                    // 내 메시지: 같은 내용의 optimistic 메시지(임시 ID) 찾아서 대체
+                    const optimisticIndex = prev.findIndex(
+                      (m) => m.sender_id === userIdRef.current &&
+                             m.message === newMsg.message &&
+                             m.id > 1000000000000 // 임시 ID는 Date.now()로 생성되어 매우 큰 값
+                    );
+                    if (optimisticIndex !== -1) {
+                      const updated = [...prev];
+                      updated[optimisticIndex] = newMsg;
+                      return updated;
+                    }
+                  }
+
+                  // 새 메시지 추가
                   return [...prev, newMsg];
                 });
-                // 새 메시지가 오면 맨 아래로 스크롤
-                setTimeout(() => scrollToBottom("smooth"), 100);
+
+                // 다른 사람 메시지일 때만 스크롤
+                if (!isMyMsg) {
+                  requestAnimationFrame(() => scrollToBottom("smooth"));
+                }
               }
               break;
 
@@ -292,8 +320,9 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
     }, 2000);
   };
 
-  const handleSend = async () => {
-    if (!message.trim() || isSending) return;
+  const handleSend = useCallback(() => {
+    const messageText = message.trim();
+    if (!messageText) return;
 
     const now = Date.now();
     if (now - lastSentTime < SPAM_COOLDOWN) return;
@@ -303,28 +332,49 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
       sendTypingStatus(false);
     }
 
+    // 입력창 즉시 비우기
+    setMessage("");
+    setLastSentTime(now);
+
+    // 즉시 메시지 추가 (optimistic update)
+    const tempId = now;
+    const optimisticMessage: ChatMessage = {
+      id: tempId,
+      meeting_id: roomId,
+      sender_id: user?.id,
+      message: messageText,
+      type: "TEXT",
+      created_at: new Date().toISOString(),
+      sender: {
+        id: user?.id || 0,
+        email: user?.email || "",
+        nickname: user?.nickname || "",
+        profile_img: user?.profileImg,
+      },
+    };
+
+    // 즉시 화면에 표시
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // 스크롤
+    requestAnimationFrame(() => {
+      scrollToBottom("smooth");
+    });
+
+    // WebSocket으로 전송
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: "message",
-        payload: { message: message.trim() },
+        payload: { message: messageText },
       }));
-      setMessage("");
-      setLastSentTime(now);
     } else {
-      try {
-        setIsSending(true);
-        const newMessage = await apiClient.sendChatRoomMessage(workspaceId, roomId, message.trim());
-        setMessages((prev) => [...prev, newMessage]);
-        setMessage("");
-        setLastSentTime(now);
-        setTimeout(() => scrollToBottom("smooth"), 100);
-      } catch (error) {
-        console.error("Failed to send message:", error);
-      } finally {
-        setIsSending(false);
-      }
+      // API 폴백
+      apiClient.sendChatRoomMessage(workspaceId, roomId, messageText).catch(() => {
+        // 실패 시 optimistic message 제거
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      });
     }
-  };
+  }, [message, lastSentTime, roomId, user, workspaceId, scrollToBottom]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !isComposingRef.current) {
@@ -400,12 +450,12 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
               const showName = showAvatar && !isMe;
 
               return (
-                <div key={msg.id} className="flex">
+                <div key={msg.id} className="flex animate-in fade-in slide-in-from-bottom-2 duration-300">
                   {/* 왼쪽 영역 (다른 유저) - 45% */}
                   <div className="w-[45%] flex justify-start">
                     {!isMe && (
                       <div className="flex gap-2">
-                        <div className="w-8 flex-shrink-0 self-end">
+                        <div className="w-8 flex-shrink-0 mt-5">
                           {showAvatar && (
                             msg.sender?.profile_img ? (
                               <img src={msg.sender.profile_img} alt={msg.sender.nickname} className="w-8 h-8 rounded-full object-cover" />
@@ -453,25 +503,43 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
               );
             })}
 
+            {/* 타이핑 인디케이터 - 메시지 영역 내 채팅 버블 스타일 */}
+            {typingUsers.length > 0 && (
+              <div className="flex animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="w-[45%] flex justify-start">
+                  <div className="flex gap-2">
+                    <div className="w-8 flex-shrink-0 mt-5">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-xs font-medium text-gray-500">{typingUsers[0]?.nickname?.charAt(0) || "?"}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <span className="text-xs text-black/50 mb-1 ml-1">
+                        {typingUsers.map((u) => u.nickname).join(", ")}
+                      </span>
+                      <div
+                        className="px-4 py-3 bg-gray-100"
+                        style={{ borderRadius: "20px 20px 20px 4px" }}
+                      >
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 bg-black/40 rounded-full animate-[bounce_1s_ease-in-out_infinite]" />
+                          <span className="w-2 h-2 bg-black/40 rounded-full animate-[bounce_1s_ease-in-out_infinite_150ms]" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-black/40 rounded-full animate-[bounce_1s_ease-in-out_infinite_300ms]" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="w-[10%]" />
+                <div className="w-[45%]" />
+              </div>
+            )}
+
             {/* 스크롤 앵커 */}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
-
-      {/* 타이핑 인디케이터 */}
-      {typingUsers.length > 0 && (
-        <div className="px-6 py-2">
-          <div className="flex items-center gap-2 text-sm text-black/50">
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-black/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <span className="w-1.5 h-1.5 bg-black/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <span className="w-1.5 h-1.5 bg-black/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-            <span>{typingUsers.map((u) => u.nickname).join(", ")} 입력 중</span>
-          </div>
-        </div>
-      )}
 
       {/* 입력 영역 */}
       <div className="px-4 py-3 border-t border-black/5">
@@ -488,18 +556,14 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange }: 
           />
           <button
             onClick={handleSend}
-            disabled={!message.trim() || isSending}
+            disabled={!message.trim()}
             className={`p-2 rounded-full transition-all ${
-              message.trim() && !isSending ? "bg-black text-white hover:bg-black/80" : "bg-black/10 text-black/30"
+              message.trim() ? "bg-black text-white hover:bg-black/80" : "bg-black/10 text-black/30"
             }`}
           >
-            {isSending ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
         </div>
       </div>

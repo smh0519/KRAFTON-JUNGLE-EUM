@@ -1,4 +1,7 @@
 @echo off
+echo Starting LiveKit Server...
+docker-compose up -d
+
 echo Starting Backend...
 cd backend
 start /b go run cmd/server/main.go

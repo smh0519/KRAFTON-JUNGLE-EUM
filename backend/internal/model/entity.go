@@ -141,6 +141,7 @@ type Whiteboard struct {
 	MeetingID   *int64    `json:"meeting_id,omitempty"`
 	WorkspaceID int64     `gorm:"not null" json:"workspace_id"`
 	Data        *string   `gorm:"type:jsonb" json:"data,omitempty"` // JSONB
+	RedoData    *string   `gorm:"type:jsonb" json:"redo_data,omitempty"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
 	// Relations

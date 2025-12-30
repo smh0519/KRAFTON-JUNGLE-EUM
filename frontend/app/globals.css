@@ -115,7 +115,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
@@ -184,15 +185,20 @@ select:focus-visible {
 }
 
 /* Smooth transitions */
-button, a, input {
+button,
+a,
+input {
   transition: all 0.15s ease;
 }
 
 /* Animation keyframes */
 @keyframes soundbar {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scaleY(0.4);
   }
+
   50% {
     transform: scaleY(1);
   }
@@ -203,10 +209,12 @@ button, a, input {
     transform: scale(0.8);
     opacity: 0.8;
   }
+
   50% {
     transform: scale(1);
     opacity: 0.4;
   }
+
   100% {
     transform: scale(0.8);
     opacity: 0.8;
@@ -218,6 +226,7 @@ button, a, input {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -228,6 +237,7 @@ button, a, input {
   from {
     transform: translateY(100%);
   }
+
   to {
     transform: translateY(0);
   }
@@ -251,6 +261,7 @@ button, a, input {
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -259,4 +270,346 @@ button, a, input {
 
 .animate-zoom-in {
   animation: zoom-in 0.15s ease-out;
+}
+
+/* LiveKit Control Bar Overrides - Black & White Minimal */
+.lk-control-bar {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  gap: 0.5rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-top: 1rem !important;
+}
+
+/* Base style for ALL buttons - Rounded Rectangle */
+.lk-control-bar .lk-button,
+.lk-control-bar .lk-disconnect-button,
+.lk-control-bar .lk-button-menu {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: black !important;
+  border: none !important;
+  border-radius: 12px !important;
+  height: 48px !important;
+  width: 48px !important;
+
+  /* Flex Centering */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  position: relative !important;
+  top: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+
+  transition: all 0.15s ease !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+}
+
+/* Button Inner */
+.lk-control-bar .lk-button>.lk-button-inner,
+.lk-control-bar .lk-disconnect-button>.lk-button-inner,
+.lk-control-bar .lk-button-menu>.lk-button-inner {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+}
+
+/* Icons */
+.lk-control-bar .lk-button svg,
+.lk-control-bar .lk-button img,
+.lk-control-bar .lk-button [class*="icon"],
+.lk-control-bar .lk-disconnect-button svg,
+.lk-control-bar .lk-disconnect-button img,
+.lk-control-bar .lk-button-menu svg,
+.lk-control-bar .lk-disconnect-button img,
+.lk-control-bar .lk-button-menu [class*="icon"] {
+  display: block !important;
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  margin: auto !important;
+  color: inherit !important;
+  fill: currentColor !important;
+  pointer-events: none !important;
+  flex-shrink: 0 !important;
+  position: static !important;
+  transform: translate(4px, 4px) !important;
+}
+
+/* Menu Items */
+.lk-device-menu .lk-button,
+.lk-menu .lk-button {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 44px !important;
+  border-radius: 8px !important;
+  aspect-ratio: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 8px 12px !important;
+  position: relative !important;
+}
+
+.lk-device-menu .lk-button *,
+.lk-menu .lk-button * {
+  width: auto !important;
+  height: auto !important;
+  display: inline-flex !important;
+  position: static !important;
+  pointer-events: auto !important;
+}
+
+.lk-device-menu svg,
+.lk-menu svg {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  margin-right: 0.75rem !important;
+  display: block !important;
+}
+
+/* Hover Effects */
+.lk-control-bar .lk-button:hover,
+.lk-control-bar .lk-button-menu:hover {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Disconnect Button Hover - Black instead of Red */
+.lk-control-bar .lk-disconnect-button:hover {
+  background-color: black !important;
+  color: white !important;
+}
+
+.lk-control-bar .lk-disconnect-button:hover svg {
+  color: white !important;
+}
+
+/* Active/Enabled States - Black */
+.lk-control-bar .lk-button[aria-pressed="true"],
+.lk-control-bar .lk-button[data-lk-enabled="true"] {
+  background-color: black !important;
+  color: white !important;
+}
+
+/* Muted States - Black (not red) */
+.lk-control-bar .lk-button[data-muted="true"],
+.lk-control-bar .lk-button[data-lk-muted="true"] {
+  background-color: black !important;
+  color: white !important;
+}
+
+.lk-control-bar .lk-button[data-muted="true"] svg,
+.lk-control-bar .lk-button[data-lk-muted="true"] svg {
+  color: white !important;
+}
+
+/* Menu Dropdown */
+.lk-device-menu,
+.lk-menu {
+  background-color: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 12px !important;
+  padding: 8px !important;
+  box-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.15) !important;
+
+  position: absolute !important;
+  top: auto !important;
+  bottom: 70px !important;
+  left: 0 !important;
+  margin: 0 !important;
+
+  min-width: 280px !important;
+  width: max-content !important;
+  max-width: 350px !important;
+  z-index: 100 !important;
+
+  animation: dropdown-fade 0.15s ease forwards !important;
+  transform-origin: bottom left !important;
+}
+
+@keyframes dropdown-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Sidebar expansion container refinement */
+.sidebar-submenu {
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease-in-out,
+    margin 0.3s ease-in-out !important;
+}
+
+/* Text alignment in menu */
+.lk-device-menu .lk-button span,
+.lk-menu .lk-button span {
+  text-align: left !important;
+  display: inline-block !important;
+}
+
+.lk-button-group {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+/* ===================================
+   LiveKit Participant Tile Styles
+   Black & White Minimal Design
+   =================================== */
+
+/* Grid Layout */
+.lk-grid-layout {
+  gap: 16px !important;
+  padding: 16px !important;
+  background: white !important;
+}
+
+/* Participant Tile Container */
+.lk-participant-tile {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: none !important;
+  transition: all 0.2s ease !important;
+  position: relative !important;
+}
+
+.lk-participant-tile:hover {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Video Element */
+.lk-participant-tile video {
+  border-radius: 16px !important;
+  object-fit: cover !important;
+}
+
+/* Participant Metadata (name bar at bottom) */
+.lk-participant-metadata {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  padding: 12px 14px !important;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.3) 60%, transparent 100%) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+/* Participant Name */
+.lk-participant-name {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: white !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Mute Indicator */
+.lk-participant-tile .lk-participant-metadata-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+/* Audio Mute Icon - Black instead of red */
+.lk-participant-tile .lk-participant-metadata-item svg {
+  width: 14px !important;
+  height: 14px !important;
+  color: white !important;
+  opacity: 0.8 !important;
+}
+
+/* Connection Quality Indicator */
+.lk-connection-quality {
+  position: absolute !important;
+  top: 10px !important;
+  right: 10px !important;
+  display: flex !important;
+  gap: 2px !important;
+  padding: 4px 6px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(4px) !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.lk-connection-quality svg {
+  width: 12px !important;
+  height: 12px !important;
+  color: black !important;
+}
+
+/* Focus Ring (for speaking indicator) - Black ring */
+.lk-participant-tile.lk-focus-toggle-button[data-lk-speaking="true"] {
+  border-color: black !important;
+  box-shadow: 0 0 0 2px black !important;
+}
+
+/* Placeholder when video is off */
+.lk-participant-placeholder {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(0, 0, 0, 0.03) !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.lk-participant-placeholder svg {
+  width: 64px !important;
+  height: 64px !important;
+  color: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Screen Share Tile - Black border */
+.lk-participant-tile[data-lk-source="screen_share"] {
+  border: 2px solid rgba(0, 0, 0, 0.2) !important;
+}
+
+.lk-participant-tile[data-lk-source="screen_share"]:hover {
+  border-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Focus Layout (when someone is pinned/focused) */
+.lk-focus-layout {
+  gap: 16px !important;
+  background: white !important;
+}
+
+.lk-focus-layout .lk-focused-participant {
+  border-radius: 20px !important;
+  overflow: hidden !important;
+}
+
+/* Carousel (side participants in focus mode) */
+.lk-carousel {
+  gap: 8px !important;
+  padding: 8px !important;
+  background: white !important;
+}
+
+.lk-carousel .lk-participant-tile {
+  border-radius: 12px !important;
+  min-width: 140px !important;
 }

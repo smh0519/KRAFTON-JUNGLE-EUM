@@ -19,6 +19,7 @@ type Config struct {
 	AI        AIConfig
 	Auth      AuthConfig
 	S3        S3Config
+	LiveKit   LiveKitConfig
 }
 
 // S3Config AWS S3 설정
@@ -28,6 +29,13 @@ type S3Config struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	PresignExpiry   time.Duration
+}
+
+// LiveKitConfig LiveKit 설정
+type LiveKitConfig struct {
+	Host      string
+	APIKey    string
+	APISecret string
 }
 
 // AuthConfig 인증 설정
@@ -128,6 +136,11 @@ func Load() *Config {
 			AccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 			SecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
 			PresignExpiry:   getDuration("S3_PRESIGN_EXPIRY", 15*time.Minute),
+		},
+		LiveKit: LiveKitConfig{
+			Host:      getEnv("LIVEKIT_HOST", "ws://localhost:7880"),
+			APIKey:    getEnv("LIVEKIT_API_KEY", "devkey"),
+			APISecret: getEnv("LIVEKIT_API_SECRET", "secret"),
 		},
 	}
 }
