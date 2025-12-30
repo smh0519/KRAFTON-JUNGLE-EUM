@@ -168,6 +168,15 @@ export default function Sidebar({
     return () => clearInterval(interval);
   }, [fetchVoiceParticipants]);
 
+  // 통화 참여/퇴장 시 즉시 갱신
+  useEffect(() => {
+    // 약간의 딜레이 후 갱신 (LiveKit 연결 완료 대기)
+    const timer = setTimeout(() => {
+      fetchVoiceParticipants();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [activeCall, fetchVoiceParticipants]);
+
   // 채팅방 생성
   const handleCreateChatRoom = async () => {
     if (!newChatRoomTitle.trim() || isCreatingRoom) return;

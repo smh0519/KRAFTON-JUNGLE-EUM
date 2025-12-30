@@ -50,6 +50,7 @@ type Session struct {
 	ConnectedAt time.Time
 	AudioBytes  int64
 	PacketCount uint64
+	Language    string // 번역 대상 언어 (ko, en, ja, zh)
 
 	// 동시성 제어
 	mu sync.RWMutex
@@ -102,6 +103,25 @@ func (s *Session) GetMetadata() *model.AudioMetadata {
 	defer s.mu.RUnlock()
 
 	return s.Metadata
+}
+
+// SetLanguage 번역 대상 언어 설정
+func (s *Session) SetLanguage(lang string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.Language = lang
+}
+
+// GetLanguage 번역 대상 언어 조회
+func (s *Session) GetLanguage() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.Language == "" {
+		return "en" // 기본값: 영어
+	}
+	return s.Language
 }
 
 // GetState 현재 상태 조회

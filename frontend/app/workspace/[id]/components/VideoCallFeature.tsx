@@ -14,7 +14,7 @@ import ParticipantSidebar from '@/components/video/ParticipantSidebar';
 import ChatPanel, { VoiceRecord } from '@/components/video/ChatPanel';
 import SubtitleOverlay from '@/components/video/SubtitleOverlay';
 import { useLiveKitTranslation } from '@/app/hooks/useLiveKitTranslation';
-import { TranscriptData } from '@/app/hooks/useAudioWebSocket';
+import { TranscriptData, TargetLanguage } from '@/app/hooks/useAudioWebSocket';
 
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
 
@@ -39,6 +39,7 @@ function VideoCallContent({
     const [isWhiteboardOpen, setIsWhiteboardOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isTranslationOpen, setIsTranslationOpen] = useState(false);
+    const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>('en');
     const [unreadCount, setUnreadCount] = useState(0);
     const [voiceRecords, setVoiceRecords] = useState<VoiceRecord[]>([]);
     const lastTranscriptRef = useRef<string | null>(null);
@@ -84,6 +85,7 @@ function VideoCallContent({
     } = useLiveKitTranslation({
         chunkIntervalMs: 1500,
         autoPlayTTS: true,
+        targetLanguage,
         onTranscript: handleTranscript,
     });
 
@@ -165,6 +167,8 @@ function VideoCallContent({
                         isChatOpen={isChatOpen}
                         isWhiteboardOpen={isWhiteboardOpen}
                         isTranslationOpen={isTranslationOpen}
+                        targetLanguage={targetLanguage}
+                        onTargetLanguageChange={setTargetLanguage}
                         unreadCount={unreadCount}
                         onToggleChat={toggleChat}
                         onToggleWhiteboard={toggleWhiteboard}

@@ -55,6 +55,12 @@ func (h *AudioHandler) HandleWebSocket(c *websocket.Conn) {
 	// 세션 초기화
 	sess := session.New(h.cfg.Audio.ChannelBufferSize)
 
+	// 언어 파라미터 추출 (Locals에서)
+	if lang, ok := c.Locals("lang").(string); ok && lang != "" {
+		sess.SetLanguage(lang)
+		log.Printf("🌐 [%s] Target language: %s", sess.ID, lang)
+	}
+
 	log.Printf("🔗 [%s] New WebSocket connection established", sess.ID)
 
 	// Graceful Shutdown & Resource Cleanup
@@ -241,8 +247,28 @@ func (h *AudioHandler) aiUnifiedWorker(sess *session.Session) {
 	log.Printf("🤖 [%s] AI unified worker started", sess.ID)
 	defer log.Printf("🤖 [%s] AI unified worker stopped", sess.ID)
 
-	// 단일 gRPC 스트림 시작
-	chatStream, err := h.aiClient.StartChatStream(sess.Context(), sess.ID)
+	// 세션 설정 정보 구성
+	metadata := sess.GetMetadata()
+	var config *ai.SessionConfig
+	if metadata != nil {
+		config = &ai.SessionConfig{
+			SampleRate:    metadata.SampleRate,
+			Channels:      uint32(metadata.Channels),
+			BitsPerSample: uint32(metadata.BitsPerSample),
+			Language:      sess.GetLanguage(),
+		}
+	} else {
+		// 메타데이터가 없는 경우 기본값 사용
+		config = &ai.SessionConfig{
+			SampleRate:    16000,
+			Channels:      1,
+			BitsPerSample: 16,
+			Language:      sess.GetLanguage(),
+		}
+	}
+
+	// 단일 gRPC 스트림 시작 (SessionConfig 전달)
+	chatStream, err := h.aiClient.StartChatStream(sess.Context(), sess.ID, config)
 	if err != nil {
 		log.Printf("❌ [%s] Failed to start AI stream: %v", sess.ID, err)
 		return

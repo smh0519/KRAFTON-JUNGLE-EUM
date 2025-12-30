@@ -6,6 +6,14 @@ const WS_BASE_URL = process.env.NEXT_PUBLIC_VOICE_WS_URL || 'ws://localhost:8080
 const SAMPLE_RATE = Number(process.env.NEXT_PUBLIC_AUDIO_SAMPLE_RATE) || 16000;
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'handshaking' | 'ready' | 'error';
+export type TargetLanguage = 'ko' | 'en' | 'ja' | 'zh';
+
+export const SUPPORTED_LANGUAGES: { code: TargetLanguage; name: string; flag: string }[] = [
+    { code: 'ko', name: '한국어', flag: '🇰🇷' },
+    { code: 'en', name: 'English', flag: '🇺🇸' },
+    { code: 'ja', name: '日本語', flag: '🇯🇵' },
+    { code: 'zh', name: '中文', flag: '🇨🇳' },
+];
 
 interface HandshakeResponse {
     status: 'ready' | 'error';
@@ -32,8 +40,9 @@ interface UseAudioWebSocketConfig {
     sampleRate?: number;
     channels?: number;
     bitsPerSample?: number;
+    targetLanguage?: TargetLanguage;
     onTranscript?: (data: TranscriptData) => void;
-    onAudio?: (audioData: ArrayBuffer) => void;
+    onAudio?: (audioData: ArrayBuffer, sampleRate: number) => void;
     onStatusChange?: (status: ConnectionStatus) => void;
     onError?: (error: Error) => void;
     enabled?: boolean;
@@ -54,6 +63,7 @@ export function useAudioWebSocket({
     sampleRate = SAMPLE_RATE,
     channels = 1,
     bitsPerSample = 16,
+    targetLanguage = 'en',
     onTranscript,
     onAudio,
     onStatusChange,
@@ -68,6 +78,7 @@ export function useAudioWebSocket({
     const isHandshakeCompleteRef = useRef(false);
     const isMountedRef = useRef(false);
     const enabledRef = useRef(enabled);
+    const targetLanguageRef = useRef(targetLanguage);
 
     // 콜백 refs (최신 콜백 유지 - 매 렌더마다 업데이트)
     const onTranscriptRef = useRef(onTranscript);
@@ -81,6 +92,11 @@ export function useAudioWebSocket({
     useEffect(() => {
         enabledRef.current = enabled;
     }, [enabled]);
+
+    // targetLanguage 값을 ref에 동기화
+    useEffect(() => {
+        targetLanguageRef.current = targetLanguage;
+    }, [targetLanguage]);
 
     const updateStatus = useCallback((newStatus: ConnectionStatus) => {
         if (!isMountedRef.current) return;
@@ -99,11 +115,13 @@ export function useAudioWebSocket({
             return;
         }
 
-        console.log("[AudioWS] Connecting to:", WS_BASE_URL);
+        // 언어 파라미터 포함한 URL 생성
+        const wsUrl = `${WS_BASE_URL}?lang=${targetLanguageRef.current}`;
+        console.log("[AudioWS] Connecting to:", wsUrl, "with language:", targetLanguageRef.current);
         updateStatus('connecting');
         isHandshakeCompleteRef.current = false;
 
-        const ws = new WebSocket(WS_BASE_URL);
+        const ws = new WebSocket(wsUrl);
         ws.binaryType = 'arraybuffer';
         wsRef.current = ws;
 
@@ -176,9 +194,9 @@ export function useAudioWebSocket({
                     console.error("[AudioWS] Failed to parse transcript message:", e);
                 }
             } else if (event.data instanceof ArrayBuffer) {
-                // Binary 응답 (TTS audio)
+                // Binary 응답 (TTS audio - PCM Int16 @ 22050Hz)
                 console.log("[AudioWS] Received audio data:", event.data.byteLength, "bytes");
-                onAudioRef.current?.(event.data);
+                onAudioRef.current?.(event.data, 22050);
             }
         };
 

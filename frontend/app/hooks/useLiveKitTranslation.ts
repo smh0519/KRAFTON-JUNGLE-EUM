@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocalParticipant } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import { useAudioWebSocket, ConnectionStatus, TranscriptData } from "./useAudioWebSocket";
+import { useAudioWebSocket, ConnectionStatus, TranscriptData, TargetLanguage } from "./useAudioWebSocket";
 import { useAudioPlayback } from "./useAudioPlayback";
 
 const SAMPLE_RATE = Number(process.env.NEXT_PUBLIC_AUDIO_SAMPLE_RATE) || 16000;
@@ -11,6 +11,7 @@ const SAMPLE_RATE = Number(process.env.NEXT_PUBLIC_AUDIO_SAMPLE_RATE) || 16000;
 interface UseLiveKitTranslationOptions {
     chunkIntervalMs?: number;
     autoPlayTTS?: boolean;
+    targetLanguage?: TargetLanguage;
     onTranscript?: (data: TranscriptData) => void;
     onError?: (error: Error) => void;
 }
@@ -61,6 +62,7 @@ function resample(inputBuffer: Float32Array, inputSampleRate: number, outputSamp
 export function useLiveKitTranslation({
     chunkIntervalMs = 1500,
     autoPlayTTS = true,
+    targetLanguage = 'en',
     onTranscript,
     onError,
 }: UseLiveKitTranslationOptions = {}): UseLiveKitTranslationReturn {
@@ -111,10 +113,10 @@ export function useLiveKitTranslation({
         }, 5000);
     }, [onTranscript]);
 
-    // TTS 오디오 처리
-    const handleAudioResponse = useCallback((audioData: ArrayBuffer) => {
+    // TTS 오디오 처리 (PCM with sampleRate)
+    const handleAudioResponse = useCallback((audioData: ArrayBuffer, sampleRate: number) => {
         if (autoPlayTTS) {
-            queueAudio(audioData);
+            queueAudio(audioData, sampleRate);
         }
     }, [autoPlayTTS, queueAudio]);
 
@@ -128,6 +130,7 @@ export function useLiveKitTranslation({
         sampleRate: SAMPLE_RATE,
         channels: 1,
         bitsPerSample: 16,
+        targetLanguage,
         onTranscript: handleTranscript,
         onAudio: handleAudioResponse,
         onError: (err) => {

@@ -258,7 +258,24 @@ func (s *Server) SetupRoutes() {
 	})
 
 	// WebSocket 오디오 스트리밍 엔드포인트
-	s.app.Get("/ws/audio", websocket.New(s.handler.HandleWebSocket, websocket.Config{
+	s.app.Get("/ws/audio", func(c *fiber.Ctx) error {
+		if !websocket.IsWebSocketUpgrade(c) {
+			return fiber.ErrUpgradeRequired
+		}
+
+		// 언어 파라미터 추출 (기본값: en)
+		lang := c.Query("lang", "en")
+		// 지원하는 언어만 허용
+		switch lang {
+		case "ko", "en", "ja", "zh":
+			// 유효한 언어
+		default:
+			lang = "en"
+		}
+		c.Locals("lang", lang)
+
+		return c.Next()
+	}, websocket.New(s.handler.HandleWebSocket, websocket.Config{
 		ReadBufferSize:  s.cfg.WebSocket.ReadBufferSize,
 		WriteBufferSize: s.cfg.WebSocket.WriteBufferSize,
 	}))
