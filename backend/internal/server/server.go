@@ -133,6 +133,9 @@ func (s *Server) SetupMiddleware() {
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true,
 	}))
+
+	// 정적 파일 제공 (업로드된 파일)
+	s.app.Static("/uploads", "./uploads")
 }
 
 // SetupRoutes 라우트 설정
@@ -165,6 +168,7 @@ func (s *Server) SetupRoutes() {
 	authGroup.Post("/refresh", authLimiter, s.authHandler.RefreshToken)
 	authGroup.Post("/logout", auth.AuthMiddleware(s.jwtManager), s.authHandler.Logout) // 인증된 사용자만
 	authGroup.Get("/me", auth.AuthMiddleware(s.jwtManager), s.authHandler.GetMe)
+	authGroup.Put("/me", auth.AuthMiddleware(s.jwtManager), s.userHandler.UpdateUser)
 
 	// User 라우트 그룹 (인증 필요)
 	userGroup := s.app.Group("/api/users", auth.AuthMiddleware(s.jwtManager))

@@ -222,10 +222,15 @@ class ApiClient {
     options: RequestInit = {},
     skipAutoRefresh: boolean = false
   ): Promise<T> {
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...(options.headers as Record<string, string>),
     };
+
+    // FormData인 경우 Content-Type 헤더 제거 (브라우저가 자동으로 boundary 설정)
+    if (options.body instanceof FormData) {
+      delete headers['Content-Type'];
+    }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
@@ -314,6 +319,26 @@ class ApiClient {
       this.isLoggedIn = false;
       return false;
     }
+  }
+
+  // 프로필 수정
+  async updateProfile(data: FormData | { nickname: string; profile_img?: string }): Promise<AuthResponse['user']> {
+    let body: BodyInit;
+    const headers: HeadersInit = {};
+
+    if (data instanceof FormData) {
+      body = data;
+      // Content-Type header should be let empty for FormData to let the browser set it with boundary
+    } else {
+      body = JSON.stringify(data);
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return this.request<AuthResponse['user']>('/auth/me', {
+      method: 'PUT',
+      body,
+      headers,
+    });
   }
 
   // 유저 검색 (닉네임 또는 이메일)

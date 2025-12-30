@@ -6,11 +6,13 @@ import { useAuth } from "../lib/auth-context";
 import { apiClient, UserSearchResult, Workspace } from "../lib/api";
 import { filterActiveMembers } from "../lib/utils";
 import NotificationDropdown from "../components/NotificationDropdown";
+import EditProfileModal from "../../components/EditProfileModal";
 
 export default function WorkspacePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, refreshUser } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
@@ -101,6 +103,11 @@ export default function WorkspacePage() {
     setSelectedMembers((prev) => [...prev, user]);
     setSearchQuery("");
     setSearchResults([]);
+  };
+
+  const handleUpdateProfile = async () => {
+    await refreshUser();
+    setIsEditProfileModalOpen(false);
   };
 
   // 멤버 제거
@@ -255,6 +262,16 @@ export default function WorkspacePage() {
                       <p className="text-sm text-black/50 mt-0.5">{user.email}</p>
                     </div>
                     <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setIsEditProfileModalOpen(true);
+                        // alert("프로필 수정 기능 준비 중입니다.");
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm text-black/70 hover:bg-black/5 transition-colors border-b border-black/5"
+                    >
+                      프로필 수정
+                    </button>
+                    <button
                       onClick={handleLogout}
                       className="w-full px-4 py-3 text-left text-sm text-black/70 hover:bg-black/5 transition-colors"
                     >
@@ -267,6 +284,15 @@ export default function WorkspacePage() {
           </div>
         </div>
       </header>
+
+      {/* Edit Profile Modal */}
+      {isEditProfileModalOpen && user && (
+        <EditProfileModal
+          user={user}
+          onClose={() => setIsEditProfileModalOpen(false)}
+          onUpdate={handleUpdateProfile}
+        />
+      )}
 
       {/* Main Content */}
       <main className="pt-16 relative z-10">
