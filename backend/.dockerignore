@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+*.test
+
+# Documentation
+*.md
+docs/
+
+# Environment files (프로덕션에서는 환경변수로 주입)
+.env
+.env.*
+
+# Debug files
+db_check_result.txt
+db_status.txt
+latest_db_check.txt
+
+# Misc
+Dockerfile
+docker-compose*.yml
