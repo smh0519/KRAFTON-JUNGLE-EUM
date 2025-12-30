@@ -65,7 +65,7 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
     // 에러 상태
     if (error) {
         return (
-            <div className="fixed inset-0 z-50 bg-white flex items-center justify-center p-4">
+            <div className="h-full w-full bg-white flex items-center justify-center p-4">
                 <div className="max-w-sm w-full text-center">
                     <div className="w-16 h-16 rounded-2xl bg-black/5 flex items-center justify-center mx-auto mb-6">
                         <svg className="w-8 h-8 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -88,7 +88,7 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
     // 로딩 상태
     if (!token) {
         return (
-            <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+            <div className="h-full w-full bg-white flex items-center justify-center">
                 <div className="text-center">
                     <div className="w-10 h-10 border-2 border-black/10 border-t-black rounded-full animate-spin mx-auto mb-4" />
                     <p className="text-black/40 text-sm">연결 중...</p>
@@ -98,12 +98,12 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
     }
 
     return (
-        <div className="fixed inset-0 z-50 bg-white">
+        <div className="h-full w-full bg-white overflow-hidden flex flex-col">
             <LiveKitRoom
                 serverUrl={LIVEKIT_URL}
                 token={token}
                 connect={true}
-                video={true}
+                video={false}
                 audio={true}
                 onDisconnected={onLeave}
                 onError={(err) => {
@@ -122,13 +122,13 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
                         videoCodec: 'vp8',
                     },
                 }}
-                className="h-full w-full"
+                className="h-full w-full flex flex-col"
             >
                 <RoomAudioRenderer />
 
                 {/* 화이트보드 모드 */}
                 {isWhiteboardOpen ? (
-                    <div className="absolute inset-0 z-40 flex gap-4 p-4 bg-black/5">
+                    <div className="flex-1 flex gap-4 p-4 bg-black/5 overflow-hidden">
                         {/* 화이트보드 */}
                         <div className="flex-1 flex flex-col bg-white rounded-2xl overflow-hidden border border-black/10">
                             <div className="flex items-center justify-between px-5 py-3 border-b border-black/5">
@@ -150,19 +150,19 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
                                     </svg>
                                 </button>
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 overflow-hidden">
                                 <WhiteboardCanvas />
                             </div>
                         </div>
 
                         {/* 참가자 사이드바 */}
-                        <div className="w-72 bg-white rounded-2xl overflow-hidden border border-black/10">
+                        <div className="w-72 bg-white rounded-2xl overflow-hidden border border-black/10 flex-shrink-0">
                             <ParticipantSidebar />
                         </div>
                     </div>
                 ) : (
                     /* 비디오 모드 */
-                    <div className="absolute inset-0 z-0">
+                    <div className="flex-1 overflow-hidden">
                         <CustomVideoConference
                             customRoomName={roomTitle}
                             isChatOpen={isChatOpen}
@@ -171,12 +171,16 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
                             onToggleChat={toggleChat}
                             onToggleWhiteboard={toggleWhiteboard}
                             onLeave={onLeave}
+                            currentUser={{
+                                nickname: user?.nickname || 'Anonymous',
+                                profileImg: user?.profileImg
+                            }}
                         />
                     </div>
                 )}
 
                 {/* 채팅 패널 - 슬라이드 */}
-                <div className={`absolute top-0 right-0 bottom-0 w-80 z-50 transform transition-transform duration-300 ease-out ${
+                <div className={`fixed top-14 right-0 bottom-0 w-80 z-40 transform transition-transform duration-300 ease-out ${
                     isChatOpen && !isWhiteboardOpen ? 'translate-x-0' : 'translate-x-full'
                 }`}>
                     <ChatPanel

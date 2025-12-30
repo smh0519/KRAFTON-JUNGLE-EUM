@@ -21,6 +21,18 @@ export default function WorkspaceDetailPage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentChatRoomTitle, setCurrentChatRoomTitle] = useState("");
 
+  // 통화 상태 (디스코드 스타일)
+  interface CallParticipant {
+    id: number;
+    nickname: string;
+    profileImg?: string;
+  }
+  const [activeCall, setActiveCall] = useState<{
+    channelId: string;
+    channelName: string;
+    participants: CallParticipant[];
+  } | null>(null);
+
   // 워크스페이스 데이터
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
@@ -109,7 +121,23 @@ export default function WorkspaceDetailPage() {
   const renderContent = () => {
     // 통화방 채널 처리
     if (activeSection.startsWith("call-")) {
-      return <CallsSection workspaceId={workspace.id} channelId={activeSection} />;
+      return (
+        <CallsSection
+          workspaceId={workspace.id}
+          channelId={activeSection}
+          activeCall={activeCall}
+          onJoinCall={(channelId, channelName) => setActiveCall({
+            channelId,
+            channelName,
+            participants: user ? [{
+              id: user.id,
+              nickname: user.nickname,
+              profileImg: user.profileImg
+            }] : []
+          })}
+          onLeaveCall={() => setActiveCall(null)}
+        />
+      );
     }
 
     // 채팅방 처리
@@ -165,6 +193,17 @@ export default function WorkspaceDetailPage() {
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         onUpdateWorkspace={(name) => setWorkspace((prev) => (prev ? { ...prev, name } : null))}
+        activeCall={activeCall}
+        onJoinCall={(channelId, channelName) => setActiveCall({
+          channelId,
+          channelName,
+          participants: user ? [{
+            id: user.id,
+            nickname: user.nickname,
+            profileImg: user.profileImg
+          }] : []
+        })}
+        onLeaveCall={() => setActiveCall(null)}
       />
 
       {/* Main Content */}
@@ -174,13 +213,12 @@ export default function WorkspaceDetailPage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push("/workspace")}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors mr-2"
-              title="워크스페이스 나가기"
+              className="flex items-center gap-1.5 text-sm text-black/50 hover:text-black transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              나가기
+              워크스페이스
             </button>
             {activeSection.startsWith("chat-") && currentChatRoomTitle && (
               <>

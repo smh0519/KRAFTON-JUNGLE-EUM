@@ -1,17 +1,23 @@
 'use client';
 
 import {
-    GridLayout,
-    ParticipantTile,
     useTracks,
     useParticipants,
     useLocalParticipant,
     useConnectionState,
-    TrackToggle,
     DisconnectButton,
+    VideoTrack,
+    useIsSpeaking,
+    TrackReferenceOrPlaceholder,
+    isTrackReference,
 } from '@livekit/components-react';
-import { Track } from 'livekit-client';
-import { useMemo } from 'react';
+import { Track, Participant } from 'livekit-client';
+import { useMemo, useEffect } from 'react';
+
+interface CurrentUser {
+    nickname: string;
+    profileImg?: string;
+}
 
 interface CustomVideoConferenceProps {
     customRoomName?: string;
@@ -21,6 +27,7 @@ interface CustomVideoConferenceProps {
     onToggleChat?: () => void;
     onToggleWhiteboard?: () => void;
     onLeave?: () => void;
+    currentUser?: CurrentUser;
 }
 
 export default function CustomVideoConference({
@@ -30,6 +37,7 @@ export default function CustomVideoConference({
     onToggleChat,
     onToggleWhiteboard,
     onLeave,
+    currentUser,
 }: CustomVideoConferenceProps) {
     const connectionState = useConnectionState();
     const participants = useParticipants();
@@ -43,12 +51,35 @@ export default function CustomVideoConference({
         { onlySubscribed: false }
     );
 
-    const activeTracks = useMemo(() => {
-        return tracks.filter((trackRef) => {
-            const participant = trackRef.participant;
-            return participant.videoTrackPublications.size > 0 || participant.audioTrackPublications.size > 0;
-        });
+    // 디버깅 로그 (개발 중에만)
+    useEffect(() => {
+        console.log('Connection state:', connectionState);
+        console.log('Participants:', participants.length, participants.map(p => p.identity));
+        console.log('Tracks:', tracks.length, tracks.map(t => ({
+            participant: t.participant.identity,
+            source: t.source,
+            isTrackRef: isTrackReference(t)
+        })));
+    }, [connectionState, participants, tracks]);
+
+    // 카메라 트랙만 필터링
+    const cameraTracks = useMemo(() => {
+        return tracks.filter((trackRef) => trackRef.source === Track.Source.Camera);
     }, [tracks]);
+
+    // 화면 공유 트랙
+    const screenShareTracks = useMemo(() => {
+        return tracks.filter((trackRef) => trackRef.source === Track.Source.ScreenShare);
+    }, [tracks]);
+
+    // 그리드 레이아웃 계산
+    const getGridClass = (count: number) => {
+        if (count === 1) return 'grid-cols-1';
+        if (count === 2) return 'grid-cols-2';
+        if (count <= 4) return 'grid-cols-2';
+        if (count <= 6) return 'grid-cols-3';
+        return 'grid-cols-4';
+    };
 
     // 연결 중
     if (connectionState === 'connecting') {
@@ -62,51 +93,47 @@ export default function CustomVideoConference({
         );
     }
 
-    // 활성 참가자 없음
-    if (activeTracks.length === 0) {
-        return (
-            <div className="h-full flex flex-col bg-white">
-                {/* 대기 화면 */}
-                <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                        <div className="w-20 h-20 bg-black/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <svg className="w-10 h-10 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <p className="text-black text-lg font-medium mb-1">{customRoomName || '통화방'}</p>
-                        <p className="text-black/40 text-sm">{participants.length}명 대기 중</p>
-                    </div>
-                </div>
-
-                {/* 컨트롤바 */}
-                <ControlBarComponent
-                    isChatOpen={isChatOpen}
-                    unreadCount={unreadCount}
-                    isMicEnabled={isMicrophoneEnabled}
-                    isCamEnabled={isCameraEnabled}
-                    isScreenEnabled={isScreenShareEnabled}
-                    onToggleMic={() => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)}
-                    onToggleCam={() => localParticipant.setCameraEnabled(!isCameraEnabled)}
-                    onToggleScreen={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
-                    onToggleChat={onToggleChat}
-                    onToggleWhiteboard={onToggleWhiteboard}
-                    onLeave={onLeave}
-                />
-            </div>
-        );
-    }
+    const totalTracks = screenShareTracks.length + cameraTracks.length;
 
     return (
         <div className="h-full w-full flex flex-col bg-white">
             {/* 비디오 그리드 */}
-            <div className="flex-1 min-h-0 p-4">
-                <GridLayout
-                    tracks={activeTracks}
-                    style={{ height: '100%', width: '100%', gap: '12px' }}
-                >
-                    <ParticipantTile />
-                </GridLayout>
+            <div className="flex-1 min-h-0 p-4 overflow-hidden">
+                {totalTracks > 0 ? (
+                    <div className={`grid ${getGridClass(totalTracks)} gap-3 h-full auto-rows-fr`}>
+                        {/* 화면 공유 먼저 표시 */}
+                        {screenShareTracks.map((trackRef, index) => (
+                            <CustomParticipantTile
+                                key={`screen-${trackRef.participant.identity}-${index}`}
+                                trackRef={trackRef}
+                                currentUser={currentUser}
+                                localParticipantIdentity={localParticipant?.identity}
+                            />
+                        ))}
+                        {/* 카메라 트랙 */}
+                        {cameraTracks.map((trackRef, index) => (
+                            <CustomParticipantTile
+                                key={`camera-${trackRef.participant.identity}-${index}`}
+                                trackRef={trackRef}
+                                currentUser={currentUser}
+                                localParticipantIdentity={localParticipant?.identity}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    /* 참가자가 없을 때 대기 화면 */
+                    <div className="h-full flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="w-20 h-20 bg-black/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <svg className="w-10 h-10 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <p className="text-black text-lg font-medium mb-1">{customRoomName || '통화방'}</p>
+                            <p className="text-black/40 text-sm">{participants.length}명 참가 중</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* 컨트롤바 */}
@@ -123,6 +150,136 @@ export default function CustomVideoConference({
                 onToggleWhiteboard={onToggleWhiteboard}
                 onLeave={onLeave}
             />
+        </div>
+    );
+}
+
+// 커스텀 참가자 타일 - 카메라 OFF 시 프로필 이미지 + 이름 표시
+function CustomParticipantTile({
+    trackRef,
+    currentUser,
+    localParticipantIdentity
+}: {
+    trackRef?: TrackReferenceOrPlaceholder;
+    currentUser?: CurrentUser;
+    localParticipantIdentity?: string;
+}) {
+    if (!trackRef) return null;
+
+    const participant = trackRef.participant;
+
+    // 카메라가 활성화되어 있는지 확인
+    const hasActiveVideoTrack = isTrackReference(trackRef) &&
+        trackRef.publication?.track !== undefined &&
+        !trackRef.publication?.isMuted;
+
+    // 카메라 로딩 중인지 확인 (트랙이 있지만 아직 활성화되지 않은 상태)
+    const isVideoLoading = isTrackReference(trackRef) &&
+        trackRef.publication?.track !== undefined &&
+        trackRef.publication?.isMuted === false &&
+        !hasActiveVideoTrack;
+
+    // 참가자 이름
+    const displayName = participant.name || participant.identity || 'Unknown';
+    const initial = displayName.charAt(0).toUpperCase();
+
+    // 로컬 참가자인지 확인하고 프로필 이미지 결정
+    const isLocalParticipant = participant.identity === localParticipantIdentity;
+    let profileImg: string | undefined;
+
+    if (isLocalParticipant && currentUser?.profileImg) {
+        // 로컬 참가자면 currentUser에서 프로필 이미지 가져오기
+        profileImg = currentUser.profileImg;
+    } else {
+        // 원격 참가자는 메타데이터에서 시도
+        try {
+            if (participant.metadata) {
+                const metadata = JSON.parse(participant.metadata);
+                profileImg = metadata.profileImg;
+            }
+        } catch (e) {
+            // 메타데이터 파싱 실패 시 무시
+        }
+    }
+
+    return (
+        <div className="relative w-full h-full bg-[#1a1a1a] rounded-xl overflow-hidden">
+            {/* 비디오 트랙 - 항상 렌더링하고 opacity로 전환 */}
+            {isTrackReference(trackRef) && trackRef.publication?.track && (
+                <div className={`absolute inset-0 transition-opacity duration-300 ${hasActiveVideoTrack ? 'opacity-100' : 'opacity-0'}`}>
+                    <VideoTrack
+                        trackRef={trackRef as any}
+                        className="w-full h-full object-cover"
+                    />
+                </div>
+            )}
+
+            {/* 프로필 화면 - 카메라 OFF 시 표시 */}
+            <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#2a2a2a] to-[#1a1a1a] transition-opacity duration-300 ${hasActiveVideoTrack ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                {/* 프로필 아바타 */}
+                {profileImg ? (
+                    <img
+                        src={profileImg}
+                        alt={displayName}
+                        className="w-24 h-24 rounded-full object-cover mb-4 shadow-lg border-2 border-white/20"
+                    />
+                ) : (
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4 shadow-lg">
+                        <span className="text-4xl font-bold text-white">{initial}</span>
+                    </div>
+                )}
+                {/* 이름 */}
+                <p className="text-white font-medium text-lg">{displayName}</p>
+            </div>
+
+            {/* 카메라 로딩 오버레이 */}
+            {isVideoLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-[#1a1a1a] z-20">
+                    <img
+                        src="/logo_white.png"
+                        alt="Loading"
+                        className="w-12 h-12 animate-pulse"
+                    />
+                </div>
+            )}
+
+            {/* 참가자 정보 오버레이 - 카메라 켜졌을 때만 표시 */}
+            {hasActiveVideoTrack && (
+                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent z-10">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            {profileImg ? (
+                                <img
+                                    src={profileImg}
+                                    alt={displayName}
+                                    className="w-6 h-6 rounded-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                                    <span className="text-xs font-medium text-white">{initial}</span>
+                                </div>
+                            )}
+                            <span className="text-white text-sm font-medium truncate">{displayName}</span>
+                        </div>
+                        <SpeakingIndicator participant={participant} />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// 발언 표시 인디케이터
+function SpeakingIndicator({ participant }: { participant: Participant }) {
+    const isSpeaking = useIsSpeaking(participant);
+
+    if (!isSpeaking) return null;
+
+    return (
+        <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <div className="w-1.5 h-3 rounded-full bg-green-400 animate-pulse" />
+            <div className="w-1.5 h-2 rounded-full bg-green-400 animate-pulse" />
         </div>
     );
 }
