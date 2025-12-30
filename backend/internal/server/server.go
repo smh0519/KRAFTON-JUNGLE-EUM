@@ -241,6 +241,8 @@ func (s *Server) SetupRoutes() {
 
 	// Video Call 라우트
 	s.app.Post("/api/video/token", auth.AuthMiddleware(s.jwtManager), s.videoHandler.GenerateToken)
+	s.app.Get("/api/video/participants", auth.AuthMiddleware(s.jwtManager), s.videoHandler.GetRoomParticipants)
+	s.app.Get("/api/video/rooms/participants", auth.AuthMiddleware(s.jwtManager), s.videoHandler.GetAllRoomsParticipants)
 
 	// Whiteboard 라우트
 	s.app.Get("/api/whiteboard", s.whiteboardHandler.GetWhiteboard)

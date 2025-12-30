@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     LiveKitRoom,
     RoomAudioRenderer,
@@ -11,7 +11,10 @@ import { useAuth } from '@/app/lib/auth-context';
 import CustomVideoConference from '@/components/video/CustomVideoConference';
 import WhiteboardCanvas from '@/components/video/WhiteboardCanvas';
 import ParticipantSidebar from '@/components/video/ParticipantSidebar';
-import ChatPanel from '@/components/video/ChatPanel';
+import ChatPanel, { VoiceRecord } from '@/components/video/ChatPanel';
+import SubtitleOverlay from '@/components/video/SubtitleOverlay';
+import { useLiveKitTranslation } from '@/app/hooks/useLiveKitTranslation';
+import { TranscriptData } from '@/app/hooks/useAudioWebSocket';
 
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
 
@@ -21,13 +24,189 @@ interface VideoCallFeatureProps {
     onLeave: () => void;
 }
 
+// LiveKitRoom 내부에서 사용할 컴포넌트 (번역 훅 사용)
+function VideoCallContent({
+    roomId,
+    roomTitle,
+    onLeave,
+    user,
+}: {
+    roomId: string;
+    roomTitle?: string;
+    onLeave: () => void;
+    user: { nickname?: string; profileImg?: string } | null;
+}) {
+    const [isWhiteboardOpen, setIsWhiteboardOpen] = useState(false);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isTranslationOpen, setIsTranslationOpen] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [voiceRecords, setVoiceRecords] = useState<VoiceRecord[]>([]);
+    const lastTranscriptRef = useRef<string | null>(null);
+
+    // 번역 결과를 음성 기록에 추가
+    const handleTranscript = useCallback((data: TranscriptData) => {
+        console.log("[VideoCallFeature] ========================================");
+        console.log("[VideoCallFeature] handleTranscript called!");
+        console.log("[VideoCallFeature] data:", JSON.stringify(data, null, 2));
+        console.log("[VideoCallFeature] lastTranscriptRef.current:", lastTranscriptRef.current);
+
+        // 중복 방지
+        if (data.translated === lastTranscriptRef.current) {
+            console.log("[VideoCallFeature] Duplicate transcript, skipping");
+            return;
+        }
+        lastTranscriptRef.current = data.translated;
+
+        const newRecord: VoiceRecord = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            speaker: user?.nickname || 'Anonymous',
+            profileImg: user?.profileImg,
+            original: data.original,
+            translated: data.translated,
+            timestamp: Date.now(),
+        };
+        console.log("[VideoCallFeature] Adding voice record:", newRecord);
+        setVoiceRecords(prev => {
+            console.log("[VideoCallFeature] Previous records count:", prev.length);
+            const newRecords = [...prev, newRecord];
+            console.log("[VideoCallFeature] New records count:", newRecords.length);
+            return newRecords;
+        });
+        console.log("[VideoCallFeature] ========================================");
+    }, [user?.nickname, user?.profileImg]);
+
+    // LiveKit 마이크 트랙을 사용하는 번역 훅
+    const {
+        isActive: isTranslationActive,
+        currentTranscript,
+        start: startTranslation,
+        stop: stopTranslation,
+    } = useLiveKitTranslation({
+        chunkIntervalMs: 1500,
+        autoPlayTTS: true,
+        onTranscript: handleTranscript,
+    });
+
+    // currentTranscript 변경 감지
+    useEffect(() => {
+        console.log("[VideoCallFeature] currentTranscript changed:", currentTranscript);
+    }, [currentTranscript]);
+
+    // voiceRecords 변경 감지
+    useEffect(() => {
+        console.log("[VideoCallFeature] voiceRecords updated:", voiceRecords.length, "records");
+    }, [voiceRecords]);
+
+    const toggleChat = useCallback(() => {
+        setIsChatOpen(prev => {
+            if (!prev) setUnreadCount(0);
+            return !prev;
+        });
+    }, []);
+
+    const toggleWhiteboard = useCallback(() => {
+        setIsWhiteboardOpen(prev => !prev);
+    }, []);
+
+    const toggleTranslation = useCallback(() => {
+        setIsTranslationOpen(prev => {
+            if (!prev) {
+                startTranslation();
+            } else {
+                stopTranslation();
+            }
+            return !prev;
+        });
+    }, [startTranslation, stopTranslation]);
+
+    const handleNewMessage = useCallback(() => {
+        if (!isChatOpen) setUnreadCount(prev => prev + 1);
+    }, [isChatOpen]);
+
+    return (
+        <>
+            <RoomAudioRenderer />
+
+            {/* 화이트보드 모드 */}
+            {isWhiteboardOpen ? (
+                <div className="flex-1 flex gap-4 p-4 bg-black/5 overflow-hidden">
+                    <div className="flex-1 flex flex-col bg-white rounded-2xl overflow-hidden border border-black/10">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-black/5">
+                            <div className="flex items-center gap-3">
+                                <svg className="w-5 h-5 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                                <span className="font-medium text-black">화이트보드</span>
+                                <span className="text-xs text-black/40 bg-black/5 px-2 py-0.5 rounded-full">
+                                    {roomTitle || roomId}
+                                </span>
+                            </div>
+                            <button
+                                onClick={toggleWhiteboard}
+                                className="p-2 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <WhiteboardCanvas />
+                        </div>
+                    </div>
+                    <div className="w-72 bg-white rounded-2xl overflow-hidden border border-black/10 flex-shrink-0">
+                        <ParticipantSidebar />
+                    </div>
+                </div>
+            ) : (
+                <div className="flex-1 overflow-hidden">
+                    <CustomVideoConference
+                        customRoomName={roomTitle}
+                        isChatOpen={isChatOpen}
+                        isWhiteboardOpen={isWhiteboardOpen}
+                        isTranslationOpen={isTranslationOpen}
+                        unreadCount={unreadCount}
+                        onToggleChat={toggleChat}
+                        onToggleWhiteboard={toggleWhiteboard}
+                        onToggleTranslation={toggleTranslation}
+                        onLeave={onLeave}
+                        currentUser={{
+                            nickname: user?.nickname || 'Anonymous',
+                            profileImg: user?.profileImg
+                        }}
+                    />
+                </div>
+            )}
+
+            {/* 채팅 패널 */}
+            <div className={`fixed top-14 right-0 bottom-0 w-80 z-40 transform transition-transform duration-300 ease-out ${
+                isChatOpen && !isWhiteboardOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}>
+                <ChatPanel
+                    roomId={roomId}
+                    onClose={toggleChat}
+                    onNewMessage={handleNewMessage}
+                    voiceRecords={voiceRecords}
+                />
+            </div>
+
+            {/* 실시간 자막 오버레이 */}
+            <SubtitleOverlay
+                text={currentTranscript}
+                speaker={user ? {
+                    name: user.nickname || 'Anonymous',
+                    profileImg: user.profileImg
+                } : undefined}
+                isActive={isTranslationActive}
+            />
+        </>
+    );
+}
+
 export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCallFeatureProps) {
     const { user } = useAuth();
     const [token, setToken] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
-    const [isWhiteboardOpen, setIsWhiteboardOpen] = useState(false);
-    const [isChatOpen, setIsChatOpen] = useState(false);
-    const [unreadCount, setUnreadCount] = useState(0);
 
     const participantName = user?.nickname || 'Anonymous';
 
@@ -46,21 +225,6 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
             fetchToken();
         }
     }, [roomId, participantName]);
-
-    const toggleChat = useCallback(() => {
-        setIsChatOpen(prev => {
-            if (!prev) setUnreadCount(0);
-            return !prev;
-        });
-    }, []);
-
-    const toggleWhiteboard = useCallback(() => {
-        setIsWhiteboardOpen(prev => !prev);
-    }, []);
-
-    const handleNewMessage = useCallback(() => {
-        if (!isChatOpen) setUnreadCount(prev => prev + 1);
-    }, [isChatOpen]);
 
     // 에러 상태
     if (error) {
@@ -124,71 +288,12 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
                 }}
                 className="h-full w-full flex flex-col"
             >
-                <RoomAudioRenderer />
-
-                {/* 화이트보드 모드 */}
-                {isWhiteboardOpen ? (
-                    <div className="flex-1 flex gap-4 p-4 bg-black/5 overflow-hidden">
-                        {/* 화이트보드 */}
-                        <div className="flex-1 flex flex-col bg-white rounded-2xl overflow-hidden border border-black/10">
-                            <div className="flex items-center justify-between px-5 py-3 border-b border-black/5">
-                                <div className="flex items-center gap-3">
-                                    <svg className="w-5 h-5 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                    </svg>
-                                    <span className="font-medium text-black">화이트보드</span>
-                                    <span className="text-xs text-black/40 bg-black/5 px-2 py-0.5 rounded-full">
-                                        {roomTitle || roomId}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={toggleWhiteboard}
-                                    className="p-2 text-black/40 hover:text-black hover:bg-black/5 rounded-lg transition-colors"
-                                >
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-hidden">
-                                <WhiteboardCanvas />
-                            </div>
-                        </div>
-
-                        {/* 참가자 사이드바 */}
-                        <div className="w-72 bg-white rounded-2xl overflow-hidden border border-black/10 flex-shrink-0">
-                            <ParticipantSidebar />
-                        </div>
-                    </div>
-                ) : (
-                    /* 비디오 모드 */
-                    <div className="flex-1 overflow-hidden">
-                        <CustomVideoConference
-                            customRoomName={roomTitle}
-                            isChatOpen={isChatOpen}
-                            isWhiteboardOpen={isWhiteboardOpen}
-                            unreadCount={unreadCount}
-                            onToggleChat={toggleChat}
-                            onToggleWhiteboard={toggleWhiteboard}
-                            onLeave={onLeave}
-                            currentUser={{
-                                nickname: user?.nickname || 'Anonymous',
-                                profileImg: user?.profileImg
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* 채팅 패널 - 슬라이드 */}
-                <div className={`fixed top-14 right-0 bottom-0 w-80 z-40 transform transition-transform duration-300 ease-out ${
-                    isChatOpen && !isWhiteboardOpen ? 'translate-x-0' : 'translate-x-full'
-                }`}>
-                    <ChatPanel
-                        roomId={roomId}
-                        onClose={toggleChat}
-                        onNewMessage={handleNewMessage}
-                    />
-                </div>
+                <VideoCallContent
+                    roomId={roomId}
+                    roomTitle={roomTitle}
+                    onLeave={onLeave}
+                    user={user}
+                />
             </LiveKitRoom>
         </div>
     );

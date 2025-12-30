@@ -35,9 +35,11 @@ func (s State) String() string {
 
 // TranscriptMessage 자막 메시지
 type TranscriptMessage struct {
-	Type    string `json:"type"`
-	Text    string `json:"text"`
-	IsFinal bool   `json:"isFinal"`
+	Type       string `json:"type"`
+	Text       string `json:"text"`       // 번역된 텍스트 (하위 호환)
+	Original   string `json:"original"`   // 원본 STT 텍스트
+	Translated string `json:"translated"` // 번역된 텍스트
+	IsFinal    bool   `json:"isFinal"`
 }
 
 // Session 클라이언트 세션 (Thread-Safe)

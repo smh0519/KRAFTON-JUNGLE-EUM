@@ -23,9 +23,11 @@ interface CustomVideoConferenceProps {
     customRoomName?: string;
     isChatOpen?: boolean;
     isWhiteboardOpen?: boolean;
+    isTranslationOpen?: boolean;
     unreadCount?: number;
     onToggleChat?: () => void;
     onToggleWhiteboard?: () => void;
+    onToggleTranslation?: () => void;
     onLeave?: () => void;
     currentUser?: CurrentUser;
 }
@@ -33,9 +35,11 @@ interface CustomVideoConferenceProps {
 export default function CustomVideoConference({
     customRoomName,
     isChatOpen = false,
+    isTranslationOpen = false,
     unreadCount = 0,
     onToggleChat,
     onToggleWhiteboard,
+    onToggleTranslation,
     onLeave,
     currentUser,
 }: CustomVideoConferenceProps) {
@@ -139,6 +143,7 @@ export default function CustomVideoConference({
             {/* 컨트롤바 */}
             <ControlBarComponent
                 isChatOpen={isChatOpen}
+                isTranslationOpen={isTranslationOpen}
                 unreadCount={unreadCount}
                 isMicEnabled={isMicrophoneEnabled}
                 isCamEnabled={isCameraEnabled}
@@ -148,6 +153,7 @@ export default function CustomVideoConference({
                 onToggleScreen={() => localParticipant.setScreenShareEnabled(!isScreenShareEnabled)}
                 onToggleChat={onToggleChat}
                 onToggleWhiteboard={onToggleWhiteboard}
+                onToggleTranslation={onToggleTranslation}
                 onLeave={onLeave}
             />
         </div>
@@ -167,6 +173,7 @@ function CustomParticipantTile({
     if (!trackRef) return null;
 
     const participant = trackRef.participant;
+    const isSpeaking = useIsSpeaking(participant);
 
     // 카메라가 활성화되어 있는지 확인
     const hasActiveVideoTrack = isTrackReference(trackRef) &&
@@ -217,17 +224,19 @@ function CustomParticipantTile({
             {/* 프로필 화면 - 카메라 OFF 시 표시 */}
             <div className={`absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#2a2a2a] to-[#1a1a1a] transition-opacity duration-300 ${hasActiveVideoTrack ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 {/* 프로필 아바타 */}
-                {profileImg ? (
-                    <img
-                        src={profileImg}
-                        alt={displayName}
-                        className="w-24 h-24 rounded-full object-cover mb-4 shadow-lg border-2 border-white/20"
-                    />
-                ) : (
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4 shadow-lg">
-                        <span className="text-4xl font-bold text-white">{initial}</span>
-                    </div>
-                )}
+                <div className={`relative mb-4 rounded-full ${isSpeaking ? 'ring-[3px] ring-green-400 ring-offset-2 ring-offset-[#1a1a1a]' : ''}`}>
+                    {profileImg ? (
+                        <img
+                            src={profileImg}
+                            alt={displayName}
+                            className="w-24 h-24 rounded-full object-cover shadow-lg"
+                        />
+                    ) : (
+                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                            <span className="text-4xl font-bold text-white">{initial}</span>
+                        </div>
+                    )}
+                </div>
                 {/* 이름 */}
                 <p className="text-white font-medium text-lg">{displayName}</p>
             </div>
@@ -287,6 +296,7 @@ function SpeakingIndicator({ participant }: { participant: Participant }) {
 // 통합 컨트롤바 컴포넌트
 function ControlBarComponent({
     isChatOpen,
+    isTranslationOpen,
     unreadCount,
     isMicEnabled,
     isCamEnabled,
@@ -296,9 +306,11 @@ function ControlBarComponent({
     onToggleScreen,
     onToggleChat,
     onToggleWhiteboard,
+    onToggleTranslation,
     onLeave,
 }: {
     isChatOpen?: boolean;
+    isTranslationOpen?: boolean;
     unreadCount?: number;
     isMicEnabled?: boolean;
     isCamEnabled?: boolean;
@@ -308,6 +320,7 @@ function ControlBarComponent({
     onToggleScreen?: () => void;
     onToggleChat?: () => void;
     onToggleWhiteboard?: () => void;
+    onToggleTranslation?: () => void;
     onLeave?: () => void;
 }) {
     return (
@@ -401,6 +414,29 @@ function ControlBarComponent({
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
+                </button>
+
+                {/* 실시간 번역 */}
+                <button
+                    onClick={onToggleTranslation}
+                    className={`p-3.5 rounded-xl transition-colors ${
+                        isTranslationOpen
+                            ? 'bg-blue-500 text-white'
+                            : '!bg-transparent hover:bg-black/10 !text-black'
+                    }`}
+                    title="실시간 번역"
+                >
+                    {isTranslationOpen ? (
+                        /* On - Filled */
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z" />
+                        </svg>
+                    ) : (
+                        /* Off - Outlined */
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                        </svg>
+                    )}
                 </button>
 
                 <div className="w-px h-8 bg-black/10 mx-2" />

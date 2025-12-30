@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,10 +70,17 @@ func (h *AudioHandler) HandleWebSocket(c *websocket.Conn) {
 		}
 	}()
 
+	// Phase 1: 핸드셰이크 (워커 시작 전에 먼저 수행)
+	if err := h.performHandshake(c, sess); err != nil {
+		log.Printf("❌ [%s] Handshake failed: %v", sess.ID, err)
+		h.sendErrorResponse(c, sess.ID, "HANDSHAKE_FAILED", err.Error())
+		return
+	}
+
 	var wg sync.WaitGroup
 	var writeMu sync.Mutex // WebSocket 쓰기 동기화
 
-	// AI 모드 또는 에코 모드 선택
+	// AI 모드 또는 에코 모드 선택 (핸드셰이크 완료 후)
 	if h.aiClient != nil {
 		// AI 모드: 단일 gRPC 스트림으로 통합
 		wg.Add(3)
@@ -107,13 +115,6 @@ func (h *AudioHandler) HandleWebSocket(c *websocket.Conn) {
 			defer wg.Done()
 			h.echoWorker(c, sess)
 		}()
-	}
-
-	// Phase 1: 핸드셰이크
-	if err := h.performHandshake(c, sess); err != nil {
-		log.Printf("❌ [%s] Handshake failed: %v", sess.ID, err)
-		h.sendErrorResponse(c, sess.ID, "HANDSHAKE_FAILED", err.Error())
-		return
 	}
 
 	// Phase 2: 오디오 스트리밍 수신 루프
@@ -248,6 +249,10 @@ func (h *AudioHandler) aiUnifiedWorker(sess *session.Session) {
 	}
 	defer chatStream.Cancel()
 
+	// 마지막 STT 원본 텍스트 저장
+	var lastOriginalText string
+	var mu sync.Mutex
+
 	// 송신 고루틴: AudioPackets → gRPC
 	go func() {
 		for {
@@ -295,17 +300,66 @@ func (h *AudioHandler) aiUnifiedWorker(sess *session.Session) {
 			}
 			log.Printf("📝 [%s] AI Text received: %s", sess.ID, text)
 
-			// Transcript 메시지를 채널로 전송
-			transcriptMsg := &session.TranscriptMessage{
-				Type:    "transcript",
-				Text:    text,
-				IsFinal: true,
-			}
-			select {
-			case sess.TranscriptChan <- transcriptMsg:
-				log.Printf("📝 [%s] Transcript queued for WebSocket", sess.ID)
-			default:
-				log.Printf("⚠️ [%s] Transcript buffer full, dropping message", sess.ID)
+			// 텍스트 타입에 따라 처리
+			if strings.HasPrefix(text, "[FINAL] ") {
+				// STT 최종 결과 - 저장만 하고 LLM 번역 결과를 기다림
+				originalText := strings.TrimPrefix(text, "[FINAL] ")
+				mu.Lock()
+				lastOriginalText = originalText
+				mu.Unlock()
+				log.Printf("📝 [%s] STT saved (waiting for LLM): %s", sess.ID, originalText)
+
+			} else if strings.HasPrefix(text, "[LLM] ") {
+				// LLM 번역 결과 - 원본과 함께 전송
+				translatedText := strings.TrimPrefix(text, "[LLM] ")
+
+				mu.Lock()
+				originalText := lastOriginalText
+				mu.Unlock()
+
+				transcriptMsg := &session.TranscriptMessage{
+					Type:       "transcript",
+					Text:       translatedText,
+					Original:   originalText,
+					Translated: translatedText,
+					IsFinal:    true,
+				}
+				select {
+				case sess.TranscriptChan <- transcriptMsg:
+					log.Printf("📝 [%s] Transcript sent (LLM): original=%s, translated=%s",
+						sess.ID, originalText, translatedText)
+				default:
+					log.Printf("⚠️ [%s] Transcript buffer full, dropping message", sess.ID)
+				}
+
+			} else if strings.HasPrefix(text, "[PARTIAL] ") {
+				// STT 중간 결과 - 무시
+				log.Printf("📝 [%s] Partial STT (ignored): %s", sess.ID, text)
+
+			} else {
+				// 알 수 없는 형식 - 그대로 전송
+				log.Printf("📝 [%s] Unknown text format: %s", sess.ID, text)
+
+				mu.Lock()
+				originalText := lastOriginalText
+				if originalText == "" {
+					originalText = text
+				}
+				mu.Unlock()
+
+				transcriptMsg := &session.TranscriptMessage{
+					Type:       "transcript",
+					Text:       text,
+					Original:   originalText,
+					Translated: text,
+					IsFinal:    true,
+				}
+				select {
+				case sess.TranscriptChan <- transcriptMsg:
+					log.Printf("📝 [%s] Transcript sent (fallback): %s", sess.ID, text)
+				default:
+					log.Printf("⚠️ [%s] Transcript buffer full, dropping message", sess.ID)
+				}
 			}
 
 		case err, ok := <-chatStream.ErrChan:

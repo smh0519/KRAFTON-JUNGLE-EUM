@@ -684,6 +684,14 @@ class ApiClient {
     });
   }
 
+  async getRoomParticipants(roomName: string): Promise<{ roomName: string; participants: { identity: string; name: string; joinedAt: number }[] }> {
+    return this.request(`/api/video/participants?roomName=${encodeURIComponent(roomName)}`);
+  }
+
+  async getAllRoomsParticipants(roomNames: string[]): Promise<Record<string, { identity: string; name: string; joinedAt: number }[]>> {
+    return this.request(`/api/video/rooms/participants?rooms=${roomNames.map(r => encodeURIComponent(r)).join(',')}`);
+  }
+
   // ========== 화이트보드 API ==========
   async getWhiteboardHistory(roomName: string): Promise<WhiteboardResponse> {
     return this.request<WhiteboardResponse>(`/api/whiteboard?room=${roomName}`);
