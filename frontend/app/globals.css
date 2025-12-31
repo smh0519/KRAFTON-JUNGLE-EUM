@@ -288,7 +288,7 @@ input {
 .lk-control-bar .lk-button,
 .lk-control-bar .lk-disconnect-button,
 .lk-control-bar .lk-button-menu {
-  background-color: rgba(0, 0, 0, 0.05) !important;
+  background-color: transparent !important;
   color: black !important;
   border: none !important;
   border-radius: 12px !important;
@@ -440,6 +440,7 @@ input {
     opacity: 0;
     transform: translateY(4px);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0);

@@ -3,19 +3,27 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   images: {
-    remotePatterns: [
+    unoptimized: true,
+  },
+  async rewrites() {
+    return [
       {
-        protocol: "https",
-        hostname: "**.amazonaws.com",
+        source: "/uploads/:path*",
+        destination: "http://localhost:8080/uploads/:path*",
       },
-      {
-        protocol: "https",
-        hostname: "lh3.googleusercontent.com",
-      },
-    ],
+    ];
   },
   async headers() {
     return [
+      {
+        source: "/:path*.mjs",
+        headers: [
+          {
+            key: "Content-Type",
+            value: "application/javascript",
+          },
+        ],
+      },
       {
         source: "/:path*.wasm",
         headers: [
@@ -24,23 +32,6 @@ const nextConfig: NextConfig = {
             value: "application/wasm",
           },
         ],
-      },
-      {
-        source: "/:path*.onnx",
-        headers: [
-          {
-            key: "Content-Type",
-            value: "application/octet-stream",
-          },
-        ],
-      },
-    ];
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/uploads/:path*",
-        destination: "http://localhost:8080/uploads/:path*",
       },
     ];
   },

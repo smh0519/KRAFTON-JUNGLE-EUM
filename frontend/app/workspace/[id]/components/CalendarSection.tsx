@@ -229,21 +229,19 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
             <div className="flex items-center bg-black/[0.03] rounded-lg p-1 mr-4">
               <button
                 onClick={() => setView("month")}
-                className={`px-3 py-1.5 text-sm rounded-md transition-all ${
-                  view === "month"
+                className={`px-3 py-1.5 text-sm rounded-md transition-all ${view === "month"
                     ? "bg-white text-black shadow-sm"
                     : "text-black/50 hover:text-black/70"
-                }`}
+                  }`}
               >
                 월
               </button>
               <button
                 onClick={() => setView("week")}
-                className={`px-3 py-1.5 text-sm rounded-md transition-all ${
-                  view === "week"
+                className={`px-3 py-1.5 text-sm rounded-md transition-all ${view === "week"
                     ? "bg-white text-black shadow-sm"
                     : "text-black/50 hover:text-black/70"
-                }`}
+                  }`}
               >
                 주
               </button>
@@ -274,9 +272,8 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
             {["일", "월", "화", "수", "목", "금", "토"].map((day, index) => (
               <div
                 key={day}
-                className={`text-center text-sm font-medium py-2 ${
-                  index === 0 ? "text-red-400" : index === 6 ? "text-blue-400" : "text-black/40"
-                }`}
+                className={`text-center text-sm font-medium py-2 ${index === 0 ? "text-red-400" : index === 6 ? "text-blue-400" : "text-black/40"
+                  }`}
               >
                 {day}
               </div>
@@ -297,24 +294,22 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                 <button
                   key={date.toISOString()}
                   onClick={() => setSelectedDate(date)}
-                  className={`aspect-square p-1 rounded-xl transition-all relative ${
-                    isSelected(date)
+                  className={`aspect-square p-1 rounded-xl transition-all relative ${isSelected(date)
                       ? "bg-black text-white"
                       : isToday(date)
-                      ? "bg-black/5"
-                      : "hover:bg-black/[0.03]"
-                  }`}
+                        ? "bg-black/5"
+                        : "hover:bg-black/[0.03]"
+                    }`}
                 >
                   <span
-                    className={`text-sm font-medium ${
-                      isSelected(date)
+                    className={`text-sm font-medium ${isSelected(date)
                         ? "text-white"
                         : dayOfWeek === 0
-                        ? "text-red-400"
-                        : dayOfWeek === 6
-                        ? "text-blue-400"
-                        : "text-black"
-                    }`}
+                          ? "text-red-400"
+                          : dayOfWeek === 6
+                            ? "text-blue-400"
+                            : "text-black"
+                      }`}
                   >
                     {date.getDate()}
                   </span>
@@ -323,9 +318,8 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                       {dayEvents.slice(0, 3).map((event) => (
                         <div
                           key={event.id}
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            isSelected(date) ? "bg-white/60" : (event.color || "bg-blue-500")
-                          }`}
+                          className={`w-1.5 h-1.5 rounded-full ${isSelected(date) ? "bg-white/60" : (event.color || "bg-blue-500")
+                            }`}
                         />
                       ))}
                     </div>
@@ -343,10 +337,10 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
           <h2 className="text-lg font-semibold text-black">
             {selectedDate
               ? selectedDate.toLocaleDateString("ko-KR", {
-                  month: "long",
-                  day: "numeric",
-                  weekday: "long",
-                })
+                month: "long",
+                day: "numeric",
+                weekday: "long",
+              })
               : "날짜를 선택하세요"}
           </h2>
           <p className="text-sm text-black/40 mt-0.5">
@@ -467,7 +461,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                   value={newEvent.title}
                   onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
                   placeholder="일정 제목"
-                  className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"
+                  className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 text-black"
                   autoFocus
                 />
               </div>
@@ -479,7 +473,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                   onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
                   placeholder="일정 설명 (선택)"
                   rows={2}
-                  className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 resize-none"
+                  className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 resize-none text-black"
                 />
               </div>
 
@@ -501,7 +495,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                     type="date"
                     value={newEvent.startDate}
                     onChange={(e) => setNewEvent({ ...newEvent, startDate: e.target.value, endDate: e.target.value })}
-                    className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"
+                    className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 text-black"
                   />
                 </div>
                 {!newEvent.isAllDay && (
@@ -511,7 +505,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                       type="time"
                       value={newEvent.startTime}
                       onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                      className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"
+                      className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 text-black"
                     />
                   </div>
                 )}
@@ -524,7 +518,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                     type="date"
                     value={newEvent.endDate}
                     onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })}
-                    className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"
+                    className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 text-black"
                   />
                 </div>
                 {!newEvent.isAllDay && (
@@ -534,7 +528,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                       type="time"
                       value={newEvent.endTime}
                       onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                      className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10"
+                      className="w-full px-4 py-3 border border-black/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/10 text-black"
                     />
                   </div>
                 )}
@@ -548,9 +542,8 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                       key={color.value}
                       type="button"
                       onClick={() => setNewEvent({ ...newEvent, color: color.value })}
-                      className={`w-8 h-8 rounded-full ${color.value} ${
-                        newEvent.color === color.value ? "ring-2 ring-offset-2 ring-black" : ""
-                      }`}
+                      className={`w-8 h-8 rounded-full ${color.value} ${newEvent.color === color.value ? "ring-2 ring-offset-2 ring-black" : ""
+                        }`}
                       title={color.label}
                     />
                   ))}

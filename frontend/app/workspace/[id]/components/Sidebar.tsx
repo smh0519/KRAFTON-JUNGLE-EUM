@@ -4,6 +4,29 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient, ChatRoom } from "../../../lib/api";
 
+interface VoiceParticipant {
+  identity: string;
+  name: string;
+  joinedAt: number;
+}
+
+interface MemberInfo {
+  nickname: string;
+  profileImg?: string;
+}
+
+interface CallParticipant {
+  id: number;
+  nickname: string;
+  profileImg?: string;
+}
+
+interface ActiveCall {
+  channelId: string;
+  channelName: string;
+  participants: CallParticipant[];
+}
+
 interface SidebarProps {
   workspaceName: string;
   workspaceId: number;
@@ -12,6 +35,9 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   onUpdateWorkspace?: (name: string) => void;
+  activeCall?: ActiveCall | null;
+  onJoinCall?: (channelId: string, channelName: string) => void;
+  onLeaveCall?: () => void;
 }
 
 interface NavItem {
@@ -37,6 +63,9 @@ export default function Sidebar({
   isCollapsed,
   onToggleCollapse,
   onUpdateWorkspace,
+  activeCall,
+  onJoinCall,
+  onLeaveCall,
 }: SidebarProps) {
   const router = useRouter();
   const [expandedItems, setExpandedItems] = useState<string[]>(["chat", "calls"]);
@@ -44,6 +73,25 @@ export default function Sidebar({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [newChatRoomTitle, setNewChatRoomTitle] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+
+  // 통화방 목록 상태
+  interface CallChannel {
+    id: string;
+    label: string;
+  }
+  const [callChannels, setCallChannels] = useState<CallChannel[]>([
+    { id: "call-general", label: "일반 통화" },
+    { id: "call-standup", label: "스탠드업 미팅" },
+    { id: "call-brainstorm", label: "브레인스토밍" },
+  ]);
+  const [showCreateCallModal, setShowCreateCallModal] = useState(false);
+  const [newCallChannelName, setNewCallChannelName] = useState("");
+
+  // 통화방 참가자 목록 (디스코드 스타일)
+  const [voiceParticipants, setVoiceParticipants] = useState<Record<string, VoiceParticipant[]>>({});
+
+  // 워크스페이스 멤버 프로필 맵 (nickname -> profileImg)
+  const [memberProfiles, setMemberProfiles] = useState<Record<string, string>>({});
 
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
@@ -79,6 +127,55 @@ export default function Sidebar({
   useEffect(() => {
     loadChatRooms();
   }, [loadChatRooms]);
+
+  // 워크스페이스 멤버 프로필 로드
+  useEffect(() => {
+    const loadMemberProfiles = async () => {
+      try {
+        const workspace = await apiClient.getWorkspace(workspaceId);
+        if (workspace.members) {
+          const profiles: Record<string, string> = {};
+          workspace.members.forEach(member => {
+            if (member.user?.nickname && member.user?.profile_img) {
+              profiles[member.user.nickname] = member.user.profile_img;
+            }
+          });
+          setMemberProfiles(profiles);
+        }
+      } catch (error) {
+        console.error("Failed to load member profiles:", error);
+      }
+    };
+    loadMemberProfiles();
+  }, [workspaceId]);
+
+  // 통화방 참가자 목록 주기적으로 가져오기
+  const fetchVoiceParticipants = useCallback(async () => {
+    if (callChannels.length === 0) return;
+
+    try {
+      const roomNames = callChannels.map(ch => `channel-${ch.id}`);
+      const participants = await apiClient.getAllRoomsParticipants(roomNames);
+      setVoiceParticipants(participants);
+    } catch (error) {
+      console.error("Failed to fetch voice participants:", error);
+    }
+  }, [callChannels]);
+
+  useEffect(() => {
+    fetchVoiceParticipants();
+    const interval = setInterval(fetchVoiceParticipants, 5000); // 5초마다 갱신
+    return () => clearInterval(interval);
+  }, [fetchVoiceParticipants]);
+
+  // 통화 참여/퇴장 시 즉시 갱신
+  useEffect(() => {
+    // 약간의 딜레이 후 갱신 (LiveKit 연결 완료 대기)
+    const timer = setTimeout(() => {
+      fetchVoiceParticipants();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [activeCall, fetchVoiceParticipants]);
 
   // 채팅방 생성
   const handleCreateChatRoom = async () => {
@@ -190,6 +287,20 @@ export default function Sidebar({
     );
   };
 
+  // 통화 채널 클릭 핸들러 - 모달 없이 바로 섹션 이동
+  const handleCallChannelClick = (channelId: string, channelLabel: string) => {
+    onSectionChange(channelId);
+  };
+
+  // 통화방 생성
+  const handleCreateCallChannel = () => {
+    if (!newCallChannelName.trim()) return;
+    const newId = `call-${Date.now()}`;
+    setCallChannels(prev => [...prev, { id: newId, label: newCallChannelName.trim() }]);
+    setNewCallChannelName("");
+    setShowCreateCallModal(false);
+  };
+
   const navItems: NavItem[] = [
     {
       id: "members",
@@ -218,11 +329,7 @@ export default function Sidebar({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
       ),
-      children: [
-        { id: "call-general", label: "일반 통화" },
-        { id: "call-standup", label: "스탠드업 미팅" },
-        { id: "call-brainstorm", label: "브레인스토밍" },
-      ],
+      dynamicChildren: true, // 통화방도 동적으로 관리
     },
     {
       id: "calendar",
@@ -320,27 +427,8 @@ export default function Sidebar({
                   )}
                 </button>
 
-                {/* Static Children (calls) */}
-                {item.children && expandedItems.includes(item.id) && !isCollapsed && (
-                  <div className="ml-4 pl-4 border-l border-black/10 mt-1 mb-2">
-                    {item.children.map((child) => (
-                      <button
-                        key={child.id}
-                        onClick={() => onSectionChange(child.id)}
-                        className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm ${activeSection === child.id
-                          ? "bg-black/5 text-black font-medium"
-                          : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
-                          }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50" />
-                        {child.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Dynamic Children (chat rooms) */}
-                {item.dynamicChildren && expandedItems.includes(item.id) && !isCollapsed && (
+                {/* Dynamic Children - 채팅방 */}
+                {item.id === "chat" && item.dynamicChildren && expandedItems.includes(item.id) && !isCollapsed && (
                   <div className="ml-4 pl-4 border-l border-black/10 mt-1 mb-2">
                     {chatRooms.map((room) => (
                       <button
@@ -365,6 +453,84 @@ export default function Sidebar({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
                       새 채팅방
+                    </button>
+                  </div>
+                )}
+
+                {/* Dynamic Children - 통화방 (디스코드 스타일) */}
+                {item.id === "calls" && item.dynamicChildren && expandedItems.includes(item.id) && !isCollapsed && (
+                  <div className="ml-4 pl-4 border-l border-black/10 mt-1 mb-2">
+                    {callChannels.map((channel) => {
+                      const roomName = `channel-${channel.id}`;
+                      const channelParticipants = voiceParticipants[roomName] || [];
+                      const hasParticipants = channelParticipants.length > 0;
+
+                      return (
+                        <div key={channel.id}>
+                          <button
+                            onClick={() => handleCallChannelClick(channel.id, channel.label)}
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm group ${
+                              hasParticipants
+                                ? "bg-green-500/10 text-green-600 font-medium"
+                                : activeSection === channel.id
+                                ? "bg-black/5 text-black font-medium"
+                                : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
+                            }`}
+                          >
+                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.728-2.728" />
+                            </svg>
+                            <span className="flex-1 text-left">{channel.label}</span>
+                            {hasParticipants && (
+                              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            )}
+                          </button>
+                          {/* 참여자 목록 - 모든 참가자 표시 (내가 통화 중이 아니어도) */}
+                          {hasParticipants && (
+                            <div className="ml-6 mt-1 space-y-0.5">
+                              {channelParticipants.map((participant) => {
+                                const displayName = participant.name || participant.identity;
+                                const profileImg = memberProfiles[displayName];
+                                return (
+                                  <div
+                                    key={participant.identity}
+                                    className="flex items-center gap-2 px-2 py-1 rounded text-xs text-black/60"
+                                  >
+                                    {profileImg ? (
+                                      <img
+                                        src={profileImg}
+                                        alt={displayName}
+                                        className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                        <span className="text-[10px] font-medium text-green-600">
+                                          {displayName.charAt(0).toUpperCase()}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <span className="truncate">{displayName}</span>
+                                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 ml-auto" fill="currentColor" viewBox="0 0 24 24">
+                                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                                    </svg>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* 새 통화방 버튼 */}
+                    <button
+                      onClick={() => setShowCreateCallModal(true)}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      새 통화방
                     </button>
                   </div>
                 )}
@@ -589,6 +755,56 @@ export default function Sidebar({
                         삭제 중
                       </span>
                     ) : "삭제"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 새 통화방 생성 모달 */}
+          {showCreateCallModal && (
+            <div
+              className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50"
+              onClick={() => { setShowCreateCallModal(false); setNewCallChannelName(""); }}
+            >
+              <div
+                className="bg-white rounded-2xl w-full max-w-sm mx-4 shadow-2xl shadow-black/10 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* 헤더 */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
+                  <h3 className="text-base font-semibold text-black">새 통화방</h3>
+                  <button
+                    onClick={() => { setShowCreateCallModal(false); setNewCallChannelName(""); }}
+                    className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 입력 영역 */}
+                <div className="p-5">
+                  <input
+                    type="text"
+                    value={newCallChannelName}
+                    onChange={(e) => setNewCallChannelName(e.target.value)}
+                    placeholder="통화방 이름을 입력하세요"
+                    className="w-full px-0 py-2 text-sm text-black placeholder:text-black/30 bg-transparent border-b border-black/10 focus:border-black/30 transition-colors focus:outline-none"
+                    autoFocus
+                    onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && handleCreateCallChannel()}
+                  />
+                </div>
+
+                {/* 버튼 */}
+                <div className="px-5 pb-5">
+                  <button
+                    onClick={handleCreateCallChannel}
+                    disabled={!newCallChannelName.trim()}
+                    className="w-full py-2.5 bg-black text-white text-sm font-medium rounded-full hover:bg-black/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    만들기
                   </button>
                 </div>
               </div>

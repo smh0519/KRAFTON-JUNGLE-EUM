@@ -1,11 +1,11 @@
 version: 1
 applications:
-  - appRoot: frontend  # 👈 여기에 실제 프론트엔드 폴더 이름을 적으세요!
+  - appRoot: frontend
     frontend:
       phases:
         preBuild:
           commands:
-            - npm ci
+            - npm ci --legacy-peer-deps
         build:
           commands:
             - npm run build
@@ -16,3 +16,4 @@ applications:
       cache:
         paths:
           - node_modules/**/*
+          - .next/cache/**/*

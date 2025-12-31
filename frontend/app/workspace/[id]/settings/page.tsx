@@ -224,7 +224,7 @@ export default function WorkspaceSettingsPage({ params }: { params: Promise<{ id
     }
 
     return (
-        <div className="flex-1 h-full overflow-y-auto bg-stone-50 custom-scrollbar">
+        <div className="h-screen overflow-y-auto bg-stone-50">
             {/* Header */}
             <div className="h-16 bg-white border-b border-black/5 flex items-center justify-between px-6 sticky top-0 z-10">
                 <div className="flex items-center gap-4">
@@ -442,7 +442,7 @@ export default function WorkspaceSettingsPage({ params }: { params: Promise<{ id
                                                     value={newRoleName}
                                                     onChange={(e) => setNewRoleName(e.target.value)}
                                                     placeholder="역할 이름 (예: 디자이너, PM)"
-                                                    className="flex-1 px-4 py-2 text-sm bg-white border border-black/10 rounded-xl focus:border-black/30 focus:outline-none"
+                                                    className="flex-1 px-4 py-2 text-sm text-black bg-white border border-black/10 rounded-xl focus:border-black/30 focus:outline-none"
                                                     onKeyDown={(e) => e.key === "Enter" && !e.nativeEvent.isComposing && handleCreateRole()}
                                                 />
                                                 <button
@@ -493,7 +493,7 @@ export default function WorkspaceSettingsPage({ params }: { params: Promise<{ id
                                                                     type="text"
                                                                     value={editRoleName}
                                                                     onChange={(e) => setEditRoleName(e.target.value)}
-                                                                    className="flex-1 px-3 py-2 text-sm bg-white border border-black/10 rounded-lg focus:outline-none"
+                                                                    className="flex-1 px-3 py-2 text-sm text-black bg-white border border-black/10 rounded-lg focus:outline-none"
                                                                     autoFocus
                                                                 />
                                                                 <div className="flex gap-1">
