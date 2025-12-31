@@ -18,6 +18,7 @@ import (
 	"realtime-backend/internal/auth"
 	"realtime-backend/internal/config"
 	"realtime-backend/internal/handler"
+	"realtime-backend/internal/model"
 	"realtime-backend/internal/storage"
 )
 
@@ -220,12 +221,17 @@ func (s *Server) SetupRoutes() {
 	workspaceGroup.Delete("/:workspaceId/chatrooms/:roomId", s.chatHandler.DeleteChatRoom)
 	workspaceGroup.Get("/:workspaceId/chatrooms/:roomId/messages", s.chatHandler.GetChatRoomMessages)
 	workspaceGroup.Post("/:workspaceId/chatrooms/:roomId/messages", s.chatHandler.SendChatRoomMessage)
+	workspaceGroup.Post("/:workspaceId/chatrooms/:roomId/read", s.chatHandler.MarkAsRead)
 
 	// Meeting 라우트 (워크스페이스 하위)
 	workspaceGroup.Get("/:workspaceId/meetings", s.meetingHandler.GetWorkspaceMeetings)
 	workspaceGroup.Post("/:workspaceId/meetings", s.meetingHandler.CreateMeeting)
 	workspaceGroup.Get("/:workspaceId/meetings/:meetingId", s.meetingHandler.GetMeeting)
 	workspaceGroup.Post("/:workspaceId/meetings/:meetingId/start", s.meetingHandler.StartMeeting)
+
+	// DM 라우트
+	workspaceGroup.Post("/:workspaceId/dm", s.chatHandler.GetOrCreateDMRoom)
+	workspaceGroup.Get("/:workspaceId/dm", s.chatHandler.GetMyDMs)
 	workspaceGroup.Post("/:workspaceId/meetings/:meetingId/end", s.meetingHandler.EndMeeting)
 
 	// Voice Record 라우트 (미팅 하위)
@@ -365,7 +371,7 @@ func (s *Server) SetupRoutes() {
 		// 채팅방이 해당 워크스페이스에 속하는지 확인
 		var roomCount int64
 		s.db.Table("meetings").
-			Where("id = ? AND workspace_id = ? AND type = ?", roomID, workspaceID, "CHAT_ROOM").
+			Where("id = ? AND workspace_id = ? AND type IN ?", roomID, workspaceID, []string{model.MeetingTypeChatRoom.String(), model.MeetingTypeDM.String()}).
 			Count(&roomCount)
 		if roomCount == 0 {
 			return c.SendStatus(fiber.StatusNotFound)

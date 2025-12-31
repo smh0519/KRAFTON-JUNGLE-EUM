@@ -421,7 +421,7 @@ func (h *ChatHandler) GetChatRoomMessages(c *fiber.Ctx) error {
 
 	// 채팅방 확인
 	var room model.Meeting
-	err = h.db.Where("id = ? AND workspace_id = ? AND type = ?", roomID, workspaceID, "CHAT_ROOM").First(&room).Error
+	err = h.db.Where("id = ? AND workspace_id = ? AND type IN ?", roomID, workspaceID, []string{model.MeetingTypeChatRoom.String(), model.MeetingTypeDM.String()}).First(&room).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "chat room not found",
@@ -447,17 +447,18 @@ func (h *ChatHandler) GetChatRoomMessages(c *fiber.Ctx) error {
 		})
 	}
 
-	// 응답 변환 (역순으로 정렬하여 시간순으로)
-	responses := make([]ChatLogResponse, len(chatLogs))
-	for i, log := range chatLogs {
-		responses[len(chatLogs)-1-i] = h.toChatLogResponse(&log)
-	}
+	// LastReadAt 업데이트 (메시지 읽음 처리)
+	now := time.Now()
+	h.db.Model(&model.Participant{}).
+		Where("meeting_id = ? AND user_id = ?", room.ID, claims.UserID).
+		Update("last_read_at", now)
 
 	return c.JSON(fiber.Map{
 		"room_id":  room.ID,
-		"messages": responses,
-		"total":    len(responses),
+		"messages": chatLogs,
+		"total":    len(chatLogs), // Pagination logic might need total count separatel but for now simple length
 	})
+
 }
 
 // SendChatRoomMessage 특정 채팅방에 메시지 전송
@@ -486,7 +487,7 @@ func (h *ChatHandler) SendChatRoomMessage(c *fiber.Ctx) error {
 
 	// 채팅방 확인
 	var room model.Meeting
-	err = h.db.Where("id = ? AND workspace_id = ? AND type = ?", roomID, workspaceID, "CHAT_ROOM").First(&room).Error
+	err = h.db.Where("id = ? AND workspace_id = ? AND type IN ?", roomID, workspaceID, []string{model.MeetingTypeChatRoom.String(), model.MeetingTypeDM.String()}).First(&room).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "chat room not found",
@@ -658,5 +659,53 @@ func (h *ChatHandler) DeleteChatRoom(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"message": "chat room deleted successfully",
+	})
+}
+
+// MarkAsRead 채팅방 읽음 처리
+func (h *ChatHandler) MarkAsRead(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(*auth.Claims)
+	workspaceID, err := c.ParamsInt("workspaceId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid workspace id",
+		})
+	}
+
+	roomID, err := c.ParamsInt("roomId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "invalid room id",
+		})
+	}
+
+	// 멤버 확인
+	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "you are not a member of this workspace",
+		})
+	}
+
+	// 채팅방 확인 (존재 여부만 체크)
+	var count int64
+	h.db.Table("meetings").Where("id = ? AND workspace_id = ?", roomID, workspaceID).Count(&count)
+	if count == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "chat room not found",
+		})
+	}
+
+	now := time.Now()
+	if err := h.db.Model(&model.Participant{}).
+		Where("meeting_id = ? AND user_id = ?", roomID, claims.UserID).
+		Update("last_read_at", now).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to mark as read",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "marked as read",
+		"read_at": now,
 	})
 }
