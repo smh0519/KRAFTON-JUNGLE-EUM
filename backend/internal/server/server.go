@@ -148,9 +148,14 @@ func (s *Server) SetupMiddleware() {
 
 // SetupRoutes 라우트 설정
 func (s *Server) SetupRoutes() {
+	// 루트 엔드포인트 (ALB 헬스체크용)
+	s.app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("OK")
+	})
+
 	// 헬스체크 엔드포인트
 	s.app.Get("/health", func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
+		return c.JSON(fiber.Map{"status": "healthy"})
 	})
 
 	// Rate Limiter 설정 (인증 엔드포인트용 - Brute Force 방지)
