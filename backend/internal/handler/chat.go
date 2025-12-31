@@ -421,7 +421,7 @@ func (h *ChatHandler) GetChatRoomMessages(c *fiber.Ctx) error {
 
 	// 채팅방 확인
 	var room model.Meeting
-	err = h.db.Where("id = ? AND workspace_id = ? AND type = ?", roomID, workspaceID, "CHAT_ROOM").First(&room).Error
+	err = h.db.Where("id = ? AND workspace_id = ? AND type IN ?", roomID, workspaceID, []string{model.MeetingTypeChatRoom.String(), model.MeetingTypeDM.String()}).First(&room).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "chat room not found",
@@ -446,6 +446,20 @@ func (h *ChatHandler) GetChatRoomMessages(c *fiber.Ctx) error {
 			"error": "failed to get chat logs",
 		})
 	}
+
+	// LastReadAt 업데이트 (메시지 읽음 처리)
+	now := time.Now()
+	go func() {
+		h.db.Model(&model.Participant{}).
+			Where("meeting_id = ? AND user_id = ?", room.ID, claims.UserID).
+			Update("last_read_at", now)
+	}()
+
+	return c.JSON(fiber.Map{
+		"room_id":  room.ID,
+		"messages": chatLogs,
+		"total":    len(chatLogs), // Pagination logic might need total count separatel but for now simple length
+	})
 
 	// 응답 변환 (역순으로 정렬하여 시간순으로)
 	responses := make([]ChatLogResponse, len(chatLogs))
@@ -486,7 +500,7 @@ func (h *ChatHandler) SendChatRoomMessage(c *fiber.Ctx) error {
 
 	// 채팅방 확인
 	var room model.Meeting
-	err = h.db.Where("id = ? AND workspace_id = ? AND type = ?", roomID, workspaceID, "CHAT_ROOM").First(&room).Error
+	err = h.db.Where("id = ? AND workspace_id = ? AND type IN ?", roomID, workspaceID, []string{model.MeetingTypeChatRoom.String(), model.MeetingTypeDM.String()}).First(&room).Error
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "chat room not found",

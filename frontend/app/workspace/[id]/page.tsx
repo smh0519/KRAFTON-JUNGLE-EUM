@@ -151,6 +151,7 @@ export default function WorkspaceDetailPage() {
           workspaceId={workspace.id}
           roomId={roomId}
           onRoomTitleChange={setCurrentChatRoomTitle}
+          onBack={() => setActiveSection("members")}
           canSendMessages={canSendMessages}
         />
       );
@@ -158,7 +159,7 @@ export default function WorkspaceDetailPage() {
 
     switch (activeSection) {
       case "members":
-        return <MembersSection workspace={workspace} onMembersUpdate={fetchWorkspace} />;
+        return <MembersSection workspace={workspace} onMembersUpdate={fetchWorkspace} onSectionChange={setActiveSection} />;
       case "chat":
         // 기본 채팅 섹션 - 채팅방을 선택하라는 메시지 표시
         return (
@@ -176,7 +177,7 @@ export default function WorkspaceDetailPage() {
       case "storage":
         return <StorageSection workspaceId={workspace.id} />;
       default:
-        return <MembersSection workspace={workspace} onMembersUpdate={fetchWorkspace} />;
+        return <MembersSection workspace={workspace} onMembersUpdate={fetchWorkspace} onSectionChange={setActiveSection} />;
     }
   };
 
