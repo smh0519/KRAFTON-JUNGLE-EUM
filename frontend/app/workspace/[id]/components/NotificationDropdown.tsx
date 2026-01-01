@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { apiClient, Notification } from "../../../lib/api";
+import { NotificationType } from "../../../lib/constants";
+import { useNotificationWebSocket } from "../../../hooks/useNotificationWebSocket";
+import { useAuth } from "../../../lib/auth-context";
 
 interface NotificationDropdownProps {
     onInvitationAccepted?: (workspaceId: number) => void;
 }
 
 export default function NotificationDropdown({ onInvitationAccepted }: NotificationDropdownProps) {
+    const { isAuthenticated } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -15,7 +19,8 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     // 알림 목록 가져오기
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
+        if (!isAuthenticated) return;
         try {
             setIsLoading(true);
             const response = await apiClient.getMyNotifications();
@@ -25,21 +30,40 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isAuthenticated]);
+
+    // WebSocket으로 실시간 알림 수신
+    const handleNewNotification = useCallback((notification: Notification) => {
+        setNotifications(prev => {
+            // 중복 방지
+            if (prev.some(n => n.id === notification.id)) {
+                return prev;
+            }
+            // 새 알림을 맨 앞에 추가
+            return [notification, ...prev];
+        });
+    }, []);
+
+    useNotificationWebSocket({
+        onNotification: handleNewNotification,
+        enabled: isAuthenticated,
+    });
+
+    // 인증 시 알림 목록 로드 (초기 1회)
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchNotifications();
+        } else {
+            setNotifications([]);
+        }
+    }, [isAuthenticated, fetchNotifications]);
 
     // 드롭다운 열릴 때 알림 목록 가져오기
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && isAuthenticated) {
             fetchNotifications();
         }
-    }, [isOpen]);
-
-    // 주기적으로 알림 목록 갱신 (30초마다)
-    useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
-    }, []);
+    }, [isOpen, isAuthenticated, fetchNotifications]);
 
     // 외부 클릭 시 드롭다운 닫기
     useEffect(() => {
@@ -171,7 +195,7 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
                                             </p>
 
                                             {/* 초대 알림인 경우 수락/거절 버튼 */}
-                                            {notification.type === "WORKSPACE_INVITE" && (
+                                            {notification.type === NotificationType.WORKSPACE_INVITE && (
                                                 <div className="flex gap-2 mt-3">
                                                     <button
                                                         onClick={() => handleAccept(notification)}
