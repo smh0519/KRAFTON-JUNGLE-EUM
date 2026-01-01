@@ -72,6 +72,8 @@ func (h *ChatHandler) GetOrCreateDMRoom(c *fiber.Ctx) error {
 		WorkspaceID: &wsID,
 		HostID:      claims.UserID,
 		Type:        model.MeetingTypeDM.String(),
+		Code:        generateMeetingCode(),
+		Status:      "ACTIVE",
 	}
 	if err := tx.Create(&newRoom).Error; err != nil {
 		tx.Rollback()

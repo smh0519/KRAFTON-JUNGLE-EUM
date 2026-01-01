@@ -120,7 +120,7 @@ func (h *WorkspaceHandler) CreateWorkspace(c *fiber.Ctx) error {
 		}
 
 		// 기본 권한 부여 (메시지 전송, 음성 접속)
-		defaultPermissions := []string{"SEND_MESSAGES", "CONNECT_VOICE"}
+		defaultPermissions := []string{"SEND_MESSAGES", "CONNECT_MEDIA"}
 		for _, code := range defaultPermissions {
 			if err := tx.Create(&model.RolePermission{
 				RoleID:         defaultRole.ID,
@@ -274,7 +274,7 @@ func (h *WorkspaceHandler) GetWorkspace(c *fiber.Ctx) error {
 				// 기본 권한 설정
 				defaultRole.Permissions = []model.RolePermission{
 					{PermissionCode: "SEND_MESSAGES"},
-					{PermissionCode: "CONNECT_VOICE"},
+					{PermissionCode: "CONNECT_MEDIA"},
 				}
 				h.db.Create(&defaultRole)
 			}
@@ -340,19 +340,13 @@ func (h *WorkspaceHandler) AddMembers(c *fiber.Ctx) error {
 		})
 	}
 
-	// 멤버인지 확인
-	isMember := false
-	for _, member := range workspace.Members {
-		if member.UserID == claims.UserID && member.Status == model.MemberStatusActive.String() {
-			isMember = true
-			break
-		}
+	// 권한 확인 (MANAGE_MEMBERS)
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "MANAGE_MEMBERS")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
 	}
-
-	if !isMember {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "you are not a member of this workspace",
-		})
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to add members"})
 	}
 
 	// 기존 멤버 ID 맵 (ACTIVE + PENDING 모두)
@@ -541,8 +535,13 @@ func (h *WorkspaceHandler) UpdateWorkspace(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "workspace not found"})
 	}
 
-	if workspace.OwnerID != claims.UserID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "only owner can update workspace"})
+	// 권한 확인 (ADMIN)
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "ADMIN")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to update workspace"})
 	}
 
 	workspace.Name = sanitizeString(req.Name)
@@ -566,8 +565,13 @@ func (h *WorkspaceHandler) DeleteWorkspace(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "workspace not found"})
 	}
 
-	if workspace.OwnerID != claims.UserID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "only owner can delete workspace"})
+	// 권한 확인 (ADMIN)
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "ADMIN")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to delete workspace"})
 	}
 
 	// Soft Delete or Hard Delete? GORM default Delete is Soft Delete if DeletedAt field exists.
@@ -619,11 +623,13 @@ func (h *WorkspaceHandler) UpdateMemberRole(c *fiber.Ctx) error {
 		})
 	}
 
-	// 권한 확인 (워크스페이스 소유자만 허용)
-	if workspace.OwnerID != claims.UserID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "only workspace owner can update member roles",
-		})
+	// 권한 확인
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "MANAGE_MEMBERS")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to update member roles"})
 	}
 
 	// 멤버 조회
@@ -657,4 +663,46 @@ func (h *WorkspaceHandler) UpdateMemberRole(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"message": "member role updated",
 	})
+}
+
+// KickMember 멤버 추방
+func (h *WorkspaceHandler) KickMember(c *fiber.Ctx) error {
+	claims := c.Locals("claims").(*auth.Claims)
+	workspaceID, err := c.ParamsInt("id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid workspace id"})
+	}
+	userID, err := c.ParamsInt("userId")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user id"})
+	}
+
+	// 권한 확인
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "MANAGE_MEMBERS")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to kick members"})
+	}
+
+	// 추방 대상 멤버 조회
+	var member model.WorkspaceMember
+	if err := h.db.Where("workspace_id = ? AND user_id = ?", workspaceID, userID).First(&member).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "member not found"})
+	}
+
+	// 소유자는 추방 불가능
+	var workspace model.Workspace
+	h.db.First(&workspace, workspaceID)
+	if workspace.OwnerID == int64(userID) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "cannot kick the owner"})
+	}
+
+	// 멤버 추방
+	if err := h.db.Delete(&member).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to kick member"})
+	}
+
+	return c.JSON(fiber.Map{"message": "member kicked successfully"})
 }

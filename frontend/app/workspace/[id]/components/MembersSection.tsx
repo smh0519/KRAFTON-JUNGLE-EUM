@@ -5,6 +5,7 @@ import { Workspace, apiClient } from "../../../lib/api";
 import { filterActiveMembers } from "../../../lib/utils";
 import InviteMemberModal from "./InviteMemberModal";
 import { useAuth } from "../../../lib/auth-context";
+import { usePermission } from "../../../hooks/usePermission";
 
 interface MembersSectionProps {
   workspace: Workspace;
@@ -23,6 +24,8 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
   const [searchQuery, setSearchQuery] = useState("");
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
+
+  const canManageMembers = usePermission(workspace, "MANAGE_MEMBERS");
 
   const fetchUnreadCounts = useCallback(async () => {
     try {
@@ -60,6 +63,7 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
     profileImg: m.user?.profile_img,
     isOwner: m.user_id === workspace.owner_id,
     joinedAt: m.joined_at,
+    role: m.role,
   }));
 
   const filteredMembers = members.filter((member) => {
@@ -104,6 +108,21 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
     }
   };
 
+  const handleKickMember = async (userId: number, nickname: string) => {
+    if (!confirm(`${nickname}님을 워크스페이스에서 강퇴하시겠습니까?`)) return;
+
+    try {
+      await apiClient.kickMember(workspace.id, userId);
+      // 멤버 목록 새로고침
+      if (onMembersUpdate) {
+        onMembersUpdate();
+      }
+    } catch (error) {
+      console.error("Failed to kick member:", error);
+      alert("멤버 강퇴에 실패했습니다.");
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -115,16 +134,17 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
               {members.length}명의 멤버
             </p>
           </div>
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-black/80 transition-colors"
-          >
-
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            멤버 초대
-          </button>
+          {canManageMembers && (
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-black/80 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              멤버 초대
+            </button>
+          )}
         </div>
 
         {/* Search */}
@@ -174,15 +194,24 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                 )}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-black">{member.name}</span>
-                  {member.isOwner && (
+                  {member.isOwner ? (
                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                       {roleLabels.owner}
                     </span>
-                  )}
+                  ) : member.role ? (
+                    <span
+                      className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor: member.role.color ? `${member.role.color}20` : '#F3F4F6',
+                        color: member.role.color || '#4B5563'
+                      }}
+                    >
+                      {member.role.name}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-sm text-black/40 truncate">{member.email}</p>
               </div>
@@ -208,11 +237,21 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                     )}
                   </button>
                 )}
-                <button className="p-2 rounded-lg hover:bg-black/5 text-black/40 hover:text-black/70 transition-colors">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                  </svg>
-                </button>
+                {/* Kick Button */}
+                {canManageMembers && !member.isOwner && member.userId !== user?.id && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleKickMember(member.userId, member.name);
+                    }}
+                    className="p-2 rounded-lg hover:bg-red-50 text-black/20 hover:text-red-500 transition-colors"
+                    title="멤버 강퇴"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -226,17 +265,18 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
             </div>
           )}
         </div>
-      </div>
+      </div >
 
       {/* Invite Modal */}
-      <InviteMemberModal
+      < InviteMemberModal
         workspaceId={workspace.id}
         workspaceName={workspace.name}
         currentMembers={members.map(m => m.userId)}
         isOpen={showInviteModal}
-        onClose={() => setShowInviteModal(false)}
+        onClose={() => setShowInviteModal(false)
+        }
         onSuccess={handleInviteSuccess}
       />
-    </div>
+    </div >
   );
 }

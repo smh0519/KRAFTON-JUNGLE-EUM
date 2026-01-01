@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { apiClient, ChatRoom } from "../../../lib/api";
+import { apiClient, ChatRoom, Workspace } from "../../../lib/api";
+import { useVoiceParticipantsWebSocket } from "../../../hooks/useVoiceParticipantsWebSocket";
+import { usePermission } from "../../../hooks/usePermission";
 
 interface VoiceParticipant {
   identity: string;
@@ -28,8 +30,7 @@ interface ActiveCall {
 }
 
 interface SidebarProps {
-  workspaceName: string;
-  workspaceId: number;
+  workspace: Workspace;
   activeSection: string;
   onSectionChange: (section: string) => void;
   isCollapsed: boolean;
@@ -56,8 +57,7 @@ interface ContextMenuState {
 }
 
 export default function Sidebar({
-  workspaceName,
-  workspaceId,
+  workspace,
   activeSection,
   onSectionChange,
   isCollapsed,
@@ -73,6 +73,11 @@ export default function Sidebar({
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [newChatRoomTitle, setNewChatRoomTitle] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+
+  const canManageChannels = usePermission(workspace, "MANAGE_CHANNELS");
+  const canManageRoles = usePermission(workspace, "MANAGE_ROLES");
+  const workspaceId = workspace.id;
+  const workspaceName = workspace.name;
 
   // 통화방 목록 상태
   interface CallChannel {
@@ -149,34 +154,66 @@ export default function Sidebar({
     loadMemberProfiles();
   }, [workspaceId]);
 
-  // 통화방 참가자 목록 주기적으로 가져오기
-  const fetchVoiceParticipants = useCallback(async () => {
-    if (callChannels.length === 0) return;
-
-    try {
-      // 워크스페이스별로 고유한 방 이름 사용
-      const roomNames = callChannels.map(ch => `workspace-${workspaceId}-${ch.id}`);
-      const participants = await apiClient.getAllRoomsParticipants(roomNames);
-      setVoiceParticipants(participants);
-    } catch (error) {
-      console.error("Failed to fetch voice participants:", error);
+  // 음성 참가자 WebSocket 핸들러
+  const handleParticipantsInit = useCallback((participants: Record<string, { identity: string; name: string; profileImg?: string; joinedAt?: number }[]>) => {
+    // roomName 형식을 channel-{id} 형식으로 변환
+    const converted: Record<string, VoiceParticipant[]> = {};
+    for (const [roomName, participantList] of Object.entries(participants)) {
+      // workspace-{id}-call-xxx 형식에서 channel-call-xxx 형식으로 변환
+      const parts = roomName.split('-');
+      if (parts.length >= 3) {
+        const channelKey = `channel-${parts.slice(2).join('-')}`;
+        converted[channelKey] = participantList.map(p => ({
+          identity: p.identity,
+          name: p.name,
+          joinedAt: p.joinedAt || Date.now(),
+        }));
+      }
     }
-  }, [callChannels, workspaceId]);
+    setVoiceParticipants(converted);
+  }, []);
 
-  useEffect(() => {
-    fetchVoiceParticipants();
-    const interval = setInterval(fetchVoiceParticipants, 5000); // 5초마다 갱신
-    return () => clearInterval(interval);
-  }, [fetchVoiceParticipants]);
+  const handleParticipantJoin = useCallback((channelId: string, participant: { identity: string; name: string; profileImg?: string }) => {
+    setVoiceParticipants(prev => {
+      const roomName = channelId.startsWith('channel-') ? channelId : `channel-${channelId}`;
+      const currentParticipants = prev[roomName] || [];
 
-  // 통화 참여/퇴장 시 즉시 갱신
-  useEffect(() => {
-    // 약간의 딜레이 후 갱신 (LiveKit 연결 완료 대기)
-    const timer = setTimeout(() => {
-      fetchVoiceParticipants();
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [activeCall, fetchVoiceParticipants]);
+      // 중복 방지
+      if (currentParticipants.some(p => p.identity === participant.identity)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [roomName]: [...currentParticipants, {
+          identity: participant.identity,
+          name: participant.name,
+          joinedAt: Date.now(),
+        }],
+      };
+    });
+  }, []);
+
+  const handleParticipantLeave = useCallback((channelId: string, identity: string) => {
+    setVoiceParticipants(prev => {
+      const roomName = channelId.startsWith('channel-') ? channelId : `channel-${channelId}`;
+      const currentParticipants = prev[roomName] || [];
+
+      return {
+        ...prev,
+        [roomName]: currentParticipants.filter(p => p.identity !== identity),
+      };
+    });
+  }, []);
+
+  // WebSocket 훅 사용
+  const { sendJoin, sendLeave } = useVoiceParticipantsWebSocket({
+    workspaceId,
+    onParticipantsInit: handleParticipantsInit,
+    onParticipantJoin: handleParticipantJoin,
+    onParticipantLeave: handleParticipantLeave,
+    enabled: true,
+  });
 
   // 채팅방 생성
   const handleCreateChatRoom = async () => {
@@ -446,15 +483,17 @@ export default function Sidebar({
                       </button>
                     ))}
                     {/* 새 채팅방 버튼 */}
-                    <button
-                      onClick={() => setShowCreateChatModal(true)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      새 채팅방
-                    </button>
+                    {canManageChannels && (
+                      <button
+                        onClick={() => setShowCreateChatModal(true)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        새 채팅방
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -470,13 +509,12 @@ export default function Sidebar({
                         <div key={channel.id}>
                           <button
                             onClick={() => handleCallChannelClick(channel.id, channel.label)}
-                            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm group ${
-                              hasParticipants
-                                ? "bg-green-500/10 text-green-600 font-medium"
-                                : activeSection === channel.id
+                            className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm group ${hasParticipants
+                              ? "bg-green-500/10 text-green-600 font-medium"
+                              : activeSection === channel.id
                                 ? "bg-black/5 text-black font-medium"
                                 : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
-                            }`}
+                              }`}
                           >
                             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.728-2.728" />
@@ -524,15 +562,17 @@ export default function Sidebar({
                       );
                     })}
                     {/* 새 통화방 버튼 */}
-                    <button
-                      onClick={() => setShowCreateCallModal(true)}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      새 통화방
-                    </button>
+                    {canManageChannels && (
+                      <button
+                        onClick={() => setShowCreateCallModal(true)}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        새 통화방
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -540,7 +580,7 @@ export default function Sidebar({
           </nav>
 
           {/* Footer */}
-          {!isCollapsed && (
+          {!isCollapsed && canManageRoles && (
             <div className="p-3 border-t border-black/5">
               <button
                 onClick={() => router.push(`/workspace/${workspaceId}/settings`)}
@@ -565,24 +605,28 @@ export default function Sidebar({
                 top: contextMenu.y,
               }}
             >
-              <button
-                onClick={() => openEditModal(contextMenu.room!)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04] hover:text-black"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                이름 변경
-              </button>
-              <button
-                onClick={() => openDeleteModal(contextMenu.room!)}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                삭제
-              </button>
+              {canManageChannels && (
+                <>
+                  <button
+                    onClick={() => openEditModal(contextMenu.room!)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04] hover:text-black"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    이름 변경
+                  </button>
+                  <button
+                    onClick={() => openDeleteModal(contextMenu.room!)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    삭제
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -812,7 +856,7 @@ export default function Sidebar({
             </div>
           )}
         </div>
-      </div>
+      </div >
 
     </>
   );
