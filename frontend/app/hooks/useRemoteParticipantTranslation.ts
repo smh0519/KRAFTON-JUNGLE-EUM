@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useParticipants, useLocalParticipant } from "@livekit/components-react";
+import { useParticipants, useLocalParticipant, useTracks } from "@livekit/components-react";
 import { Track, RemoteParticipant, LocalParticipant } from "livekit-client";
 import { TranscriptData, TargetLanguage } from "./useAudioWebSocket";
 import { useAudioPlayback } from "./useAudioPlayback";
@@ -119,6 +119,9 @@ export function useRemoteParticipantTranslation({
     const participants = useParticipants();
     const { localParticipant } = useLocalParticipant();
 
+    // Track microphone tracks to know when they become available
+    const audioTracks = useTracks([Track.Source.Microphone], { onlySubscribed: true });
+
     // All refs for stable references
     const streamsRef = useRef<Map<string, ParticipantStream>>(new Map());
     const enabledRef = useRef(enabled);
@@ -193,6 +196,12 @@ export function useRemoteParticipantTranslation({
     const participantIds = useMemo(
         () => participants.map(p => p.identity).sort().join(','),
         [participants]
+    );
+
+    // Memoize audio track info to detect when new tracks become available
+    const audioTrackInfo = useMemo(
+        () => audioTracks.map(t => `${t.participant.identity}:${t.publication?.trackSid || 'none'}`).sort().join(','),
+        [audioTracks]
     );
 
     // Track previous language settings to detect changes
@@ -514,22 +523,31 @@ export function useRemoteParticipantTranslation({
 
         // Count remote participants only (exclude local)
         const remoteIds = currentIds.filter(id => id !== localId);
-        console.log(`[RemoteTranslation] Local: ${localId}, Remote participants: [${remoteIds.join(', ')}]`);
+        console.log(`[RemoteTranslation] Local: ${localId}, Remote participants: [${remoteIds.join(', ')}], Audio tracks: ${audioTracks.length}`);
         setIsActive(true);
 
         const currentParticipantIds = new Set(currentIds);
         const existingStreamIds = new Set(streamsRef.current.keys());
 
-        // Find REMOTE participants to add (exclude local participant)
-        const participantsToAdd = participants.filter(p =>
-            !existingStreamIds.has(p.identity) &&
-            p.identity !== localId
+        // Find REMOTE participants with available audio tracks
+        const remoteAudioTracks = audioTracks.filter(t =>
+            t.participant.identity !== localId &&
+            t.publication?.track?.mediaStreamTrack
         );
 
-        // Add new remote participants only
-        participantsToAdd.forEach(participant => {
-            console.log(`[RemoteTranslation] Creating stream for REMOTE: ${participant.identity} (I am: ${localId})`);
-            createParticipantStream(participant as RemoteParticipant);
+        console.log(`[RemoteTranslation] Available remote audio tracks:`, remoteAudioTracks.map(t => ({
+            identity: t.participant.identity,
+            trackSid: t.publication?.trackSid,
+            hasMediaStreamTrack: !!t.publication?.track?.mediaStreamTrack,
+        })));
+
+        // Add new remote participants that have audio tracks available
+        remoteAudioTracks.forEach(trackRef => {
+            const participantId = trackRef.participant.identity;
+            if (!existingStreamIds.has(participantId)) {
+                console.log(`[RemoteTranslation] Creating stream for REMOTE: ${participantId} (I am: ${localId})`);
+                createParticipantStream(trackRef.participant as RemoteParticipant);
+            }
         });
 
         // Remove departed participants
@@ -540,7 +558,9 @@ export function useRemoteParticipantTranslation({
             }
         });
 
-        setActiveParticipantCount(remoteIds.length);
+        // Count how many remote participants have active streams
+        const activeRemoteStreams = Array.from(streamsRef.current.keys()).filter(id => id !== localId);
+        setActiveParticipantCount(activeRemoteStreams.length);
 
         // Cleanup on unmount or when sttEnabled changes
         return () => {
@@ -549,9 +569,9 @@ export function useRemoteParticipantTranslation({
                 cleanupAllStreams();
             }
         };
-    // Depend on sttEnabled, participantIds, language changes, and localParticipant identity
+    // Depend on sttEnabled, participantIds, language changes, localParticipant identity, and audio tracks
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sttEnabled, participantIds, sourceLanguage, targetLanguage, localParticipant?.identity]);
+    }, [sttEnabled, participantIds, sourceLanguage, targetLanguage, localParticipant?.identity, audioTrackInfo]);
 
     // Cleanup on unmount
     useEffect(() => {
