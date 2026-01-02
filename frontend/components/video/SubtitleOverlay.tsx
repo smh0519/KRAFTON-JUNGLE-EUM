@@ -107,25 +107,49 @@ function SubtitleItem({
     const [isTyping, setIsTyping] = useState(true);
     const typingRef = useRef<NodeJS.Timeout | null>(null);
     const exitRef = useRef<NodeJS.Timeout | null>(null);
+    const prevTextRef = useRef('');
+    const targetTextRef = useRef(entry.text);
 
-    // 타이핑 애니메이션
+    // 증분 타이핑 애니메이션 (새 글자만 추가)
     useEffect(() => {
-        const text = entry.text;
-        let index = 0;
+        const newText = entry.text;
+        const prevText = prevTextRef.current;
+        targetTextRef.current = newText;
+
+        // 기존 타이머 취소
+        if (typingRef.current) clearTimeout(typingRef.current);
+        if (exitRef.current) clearTimeout(exitRef.current);
+
+        // 새 텍스트가 이전 텍스트로 시작하면 (증분 업데이트)
+        // 이전 위치부터 타이핑 시작
+        let startIndex = 0;
+        if (newText.startsWith(prevText)) {
+            startIndex = prevText.length;
+            // 이미 표시된 부분은 유지
+        } else {
+            // 완전히 새로운 텍스트면 처음부터
+            setDisplayText('');
+            startIndex = 0;
+        }
+
+        let currentIndex = startIndex;
+        setIsTyping(true);
 
         const type = () => {
-            if (index <= text.length) {
-                setDisplayText(text.slice(0, index));
-                index++;
-                typingRef.current = setTimeout(type, 25);
+            // targetTextRef를 확인해서 최신 텍스트와 비교
+            if (currentIndex <= targetTextRef.current.length) {
+                setDisplayText(targetTextRef.current.slice(0, currentIndex));
+                currentIndex++;
+                typingRef.current = setTimeout(type, 20); // 20ms per character
             } else {
                 setIsTyping(false);
+                prevTextRef.current = targetTextRef.current;
             }
         };
 
         type();
 
-        // 5초 후 자동 제거
+        // 5초 후 자동 제거 (타이핑 완료 후부터)
         exitRef.current = setTimeout(onComplete, 5000);
 
         return () => {
@@ -133,8 +157,6 @@ function SubtitleItem({
             if (exitRef.current) clearTimeout(exitRef.current);
         };
     }, [entry.text, onComplete]);
-
-    const getInitials = (name: string) => name.charAt(0).toUpperCase();
 
     return (
         <div
@@ -163,15 +185,15 @@ function SubtitleItem({
                             className="w-full h-full object-cover"
                         />
                     ) : (
-                        <span className="text-white text-sm font-semibold">
-                            {getInitials(entry.speaker.name)}
-                        </span>
+                        <Image
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(entry.speaker.name)}&background=6366f1&color=fff&size=32`}
+                            alt={entry.speaker.name}
+                            width={32}
+                            height={32}
+                            className="w-full h-full object-cover"
+                        />
                     )}
                 </div>
-                {/* 말하는 중 인디케이터 */}
-                {isTyping && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border border-black/80 animate-pulse" />
-                )}
             </div>
 
             {/* 이름 + 텍스트 */}
@@ -189,13 +211,13 @@ function SubtitleItem({
                             <span className="text-white/40 text-xs">→</span>
                             <span className="text-white text-base font-semibold">
                                 {displayText}
-                                {isTyping && <span className="animate-cursor-blink">|</span>}
+                                {isTyping && <span className="animate-cursor-blink ml-0.5 text-white/60">|</span>}
                             </span>
                         </div>
                     ) : (
                         <span className="text-white text-base font-semibold">
                             {displayText}
-                            {isTyping && <span className="animate-cursor-blink ml-0.5">|</span>}
+                            {isTyping && <span className="animate-cursor-blink ml-0.5 text-white/60">|</span>}
                         </span>
                     )}
                 </div>
@@ -280,7 +302,7 @@ export default function SubtitleOverlay({
                 }
 
                 .animate-cursor-blink {
-                    animation: cursor-blink 0.6s ease-in-out infinite;
+                    animation: cursor-blink 0.8s ease-in-out infinite;
                 }
             `}</style>
         </div>

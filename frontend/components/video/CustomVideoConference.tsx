@@ -493,6 +493,10 @@ function ControlBarComponent({
                                     key={`source-${lang.code}`}
                                     onClick={() => {
                                         onSourceLanguageChange?.(lang.code);
+                                        // 같은 언어 선택 시에만 메뉴 닫기 (다른 언어 변경 시 계속 열어두기)
+                                        if (sourceLanguage === lang.code) {
+                                            setShowLanguageMenu(false);
+                                        }
                                     }}
                                     className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-black/5 transition-colors ${
                                         sourceLanguage === lang.code ? 'bg-green-50 text-green-600' : 'text-black'

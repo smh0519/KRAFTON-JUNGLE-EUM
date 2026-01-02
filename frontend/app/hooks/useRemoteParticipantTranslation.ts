@@ -254,27 +254,46 @@ export function useRemoteParticipantTranslation({
 
         console.log(`[RemoteTranslation] Cleaning up stream for ${participantId}`);
 
+        // 1. 분석 인터벌 중지
         if (stream.analysisInterval) {
             clearInterval(stream.analysisInterval);
+            stream.analysisInterval = null;
         }
 
+        // 2. AudioWorklet 포트 메시지 핸들러 제거 및 연결 해제
         if (stream.workletNode) {
+            stream.workletNode.port.onmessage = null;
+            stream.workletNode.port.close();
             stream.workletNode.disconnect();
+            stream.workletNode = null;
         }
 
+        // 3. 소스 노드 연결 해제
         if (stream.sourceNode) {
             stream.sourceNode.disconnect();
+            stream.sourceNode = null;
         }
 
+        // 4. AudioContext 닫기 (모든 오디오 처리 중지)
         if (stream.audioContext && stream.audioContext.state !== 'closed') {
-            stream.audioContext.close();
+            stream.audioContext.close().catch(() => {
+                // AudioContext close 실패 무시
+            });
         }
 
-        if (stream.ws && stream.ws.readyState === WebSocket.OPEN) {
-            stream.ws.close();
+        // 5. WebSocket 닫기
+        if (stream.ws) {
+            if (stream.ws.readyState === WebSocket.OPEN || stream.ws.readyState === WebSocket.CONNECTING) {
+                stream.ws.close();
+            }
+            stream.ws = null as any;
         }
+
+        // 6. 버퍼 비우기
+        stream.audioBuffer = [];
 
         streamsRef.current.delete(participantId);
+        console.log(`[RemoteTranslation] Stream cleanup complete for ${participantId}`);
     };
 
     const cleanupAllStreams = () => {
@@ -339,19 +358,27 @@ export function useRemoteParticipantTranslation({
 
             // Handle audio data with debugging
             workletNode.port.onmessage = (event) => {
+                // 스트림이 여전히 존재하는지 확인
+                const currentStream = streamsRef.current.get(participantId);
+                if (!currentStream || !currentStream.workletNode) {
+                    return; // 스트림이 정리되었으면 무시
+                }
+
                 // 디버그 메시지 처리
                 if (event.data.debug) {
+                    // 정리된 후 메시지는 무시
+                    if (!streamsRef.current.has(participantId)) return;
                     console.log(`[AudioWorklet] ${participantId}: ${event.data.message}`);
                     return;
                 }
 
                 const { audioData, rms } = event.data;
-                if (audioData) {
+                if (audioData && currentStream.audioBuffer) {
                     // 오디오 레벨 로깅 (가끔)
                     if (Math.random() < 0.02) {  // 2% 확률로 로깅
                         console.log(`[AudioCapture] ${participantId}: buffer RMS=${rms?.toFixed(6) || 'N/A'}, samples=${audioData.length}`);
                     }
-                    stream.audioBuffer.push(new Float32Array(audioData));
+                    currentStream.audioBuffer.push(new Float32Array(audioData));
                 }
             };
 

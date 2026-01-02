@@ -141,10 +141,19 @@ export function useAudioPlayback({
     // MP3 오디오 재생 (기존 방식)
     const playAudio = useCallback(async (audioData: ArrayBuffer, participantId?: string): Promise<void> => {
         try {
+            console.log(`[AudioPlayback] Playing MP3 audio: ${audioData.byteLength} bytes, participant: ${participantId}`);
             const audioContext = getAudioContext();
 
+            // AudioContext suspended 상태 확인
+            if (audioContext.state === 'suspended') {
+                console.log('[AudioPlayback] AudioContext suspended, resuming...');
+                await audioContext.resume();
+            }
+
             // MP3 디코딩
+            console.log('[AudioPlayback] Decoding MP3 audio...');
             const audioBuffer = await audioContext.decodeAudioData(audioData.slice(0));
+            console.log(`[AudioPlayback] Decoded: duration=${audioBuffer.duration.toFixed(2)}s, sampleRate=${audioBuffer.sampleRate}`);
 
             // 이전 재생 중지
             if (sourceNodeRef.current) {
@@ -182,6 +191,10 @@ export function useAudioPlayback({
             });
         } catch (error) {
             console.error("[AudioPlayback] Failed to play audio:", error);
+            console.error("[AudioPlayback] Audio data size:", audioData.byteLength, "bytes");
+            // MP3 헤더 확인 (첫 3바이트가 ID3 또는 0xFF 0xFB여야 함)
+            const view = new Uint8Array(audioData.slice(0, 10));
+            console.error("[AudioPlayback] First 10 bytes:", Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' '));
             setIsPlaying(false);
             setCurrentParticipantId(null);
             currentParticipantIdRef.current = null;
@@ -192,14 +205,17 @@ export function useAudioPlayback({
     // 큐 처리
     const processQueue = useCallback(async () => {
         if (isProcessingRef.current || audioQueueRef.current.length === 0) {
+            console.log(`[AudioPlayback] processQueue skipped: isProcessing=${isProcessingRef.current}, queueLength=${audioQueueRef.current.length}`);
             return;
         }
 
         isProcessingRef.current = true;
+        console.log(`[AudioPlayback] processQueue started: ${audioQueueRef.current.length} items`);
 
         while (audioQueueRef.current.length > 0) {
             const item = audioQueueRef.current.shift();
             if (item) {
+                console.log(`[AudioPlayback] Processing queue item: ${item.data.byteLength} bytes, isPCM=${item.isPCM}`);
                 if (item.isPCM) {
                     await playPCMAudio(item.data, item.sampleRate, item.participantId);
                 } else {
@@ -209,11 +225,14 @@ export function useAudioPlayback({
         }
 
         isProcessingRef.current = false;
+        console.log('[AudioPlayback] processQueue completed');
     }, [playAudio, playPCMAudio]);
 
     // 오디오 큐에 추가 (PCM 형식 - sampleRate가 있으면 PCM으로 처리)
     const queueAudio = useCallback((audioData: ArrayBuffer, sampleRate?: number, participantId?: string) => {
         const isPCM = sampleRate !== undefined;
+        console.log(`[AudioPlayback] Queuing audio: ${audioData.byteLength} bytes, isPCM=${isPCM}, participant=${participantId}, queueLength=${audioQueueRef.current.length}`);
+
         audioQueueRef.current.push({
             data: audioData,
             sampleRate: sampleRate || 44100,
@@ -223,7 +242,10 @@ export function useAudioPlayback({
 
         // 재생 중이 아니면 큐 처리 시작
         if (!isPlaying && !isProcessingRef.current) {
+            console.log('[AudioPlayback] Starting queue processing...');
             processQueue();
+        } else {
+            console.log(`[AudioPlayback] Queue processing deferred: isPlaying=${isPlaying}, isProcessing=${isProcessingRef.current}`);
         }
     }, [isPlaying, processQueue]);
 
