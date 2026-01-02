@@ -121,6 +121,11 @@ func ConnectDB() (*gorm.DB, error) {
 	CREATE INDEX IF NOT EXISTS idx_whiteboard_strokes_meeting_created ON whiteboard_strokes (meeting_id, created_at);
 	ALTER TABLE whiteboard_strokes ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 	
+	-- Manual migration for User Status features
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS default_status varchar(20) DEFAULT 'ONLINE';
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_status_text varchar(100);
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_status_emoji varchar(10);
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_status_expires_at timestamptz;
 	CREATE TABLE IF NOT EXISTS whiteboard_snapshots (
 		id bigserial PRIMARY KEY,
 		meeting_id bigint NOT NULL,

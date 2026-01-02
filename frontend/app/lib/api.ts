@@ -7,6 +7,10 @@ interface AuthResponse {
     nickname: string;
     profile_img?: string;
     provider?: string;
+    default_status?: string;
+    custom_status_text?: string;
+    custom_status_emoji?: string;
+    custom_status_expires_at?: string;
   };
   expires_in: number;
 }
@@ -16,6 +20,9 @@ interface UserSearchResult {
   email: string;
   nickname: string;
   profile_img?: string;
+  default_status?: string;
+  custom_status_text?: string;
+  custom_status_emoji?: string;
 }
 
 interface SearchUsersResponse {
@@ -426,6 +433,19 @@ class ApiClient {
       method: 'PUT',
       body,
       headers,
+    });
+  }
+
+  // 상태 업데이트
+  async updateUserStatus(data: {
+    status?: string;
+    custom_status_text?: string;
+    custom_status_emoji?: string;
+    expires_at?: string;
+  }): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/auth/me/status', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 

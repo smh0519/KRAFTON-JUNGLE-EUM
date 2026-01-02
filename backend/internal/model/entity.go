@@ -6,13 +6,19 @@ import (
 
 // User 사용자
 type User struct {
-	ID         int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	Email      string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-	Nickname   string    `gorm:"type:varchar(100);not null" json:"nickname"`
-	ProfileImg *string   `gorm:"type:text" json:"profile_img,omitempty"`
-	Provider   *string   `gorm:"type:varchar(50)" json:"provider,omitempty"`
-	ProviderID *string   `gorm:"type:varchar(255)" json:"provider_id,omitempty"`
-	CreatedAt  time.Time `gorm:"autoCreateTime" json:"created_at"`
+	ID         int64   `gorm:"primaryKey;autoIncrement" json:"id"`
+	Email      string  `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
+	Nickname   string  `gorm:"type:varchar(100);not null" json:"nickname"`
+	ProfileImg *string `gorm:"type:text" json:"profile_img,omitempty"`
+	Provider   *string `gorm:"type:varchar(50)" json:"provider,omitempty"`
+	ProviderID *string `gorm:"type:varchar(255)" json:"provider_id,omitempty"`
+
+	// Presence & Status
+	DefaultStatus         string     `gorm:"type:varchar(20);default:'ONLINE'" json:"default_status"`
+	CustomStatusText      *string    `gorm:"type:varchar(100)" json:"custom_status_text,omitempty"`
+	CustomStatusEmoji     *string    `gorm:"type:varchar(10)" json:"custom_status_emoji,omitempty"`
+	CustomStatusExpiresAt *time.Time `json:"custom_status_expires_at,omitempty"`
+	CreatedAt             time.Time  `gorm:"autoCreateTime" json:"created_at"`
 
 	// Relations
 	Workspaces   []WorkspaceMember `gorm:"foreignKey:UserID" json:"workspaces,omitempty"`
