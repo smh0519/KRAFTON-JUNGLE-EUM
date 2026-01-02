@@ -155,6 +155,7 @@ export function useRoomTranslation({
     const isConnectedRef = useRef(false);
     const targetLanguageRef = useRef(targetLanguage);
     const enabledRef = useRef(enabled);
+    const autoPlayTTSRef = useRef(autoPlayTTS);
     const onTranscriptRef = useRef(onTranscript);
     const onErrorRef = useRef(onError);
 
@@ -181,6 +182,7 @@ export function useRoomTranslation({
     useEffect(() => {
         targetLanguageRef.current = targetLanguage;
         enabledRef.current = enabled;
+        autoPlayTTSRef.current = autoPlayTTS;
         onTranscriptRef.current = onTranscript;
         onErrorRef.current = onError;
         duckParticipantRef.current = duckParticipant;
@@ -188,7 +190,7 @@ export function useRoomTranslation({
         unduckAllRef.current = unduckAll;
         queueAudioRef.current = queueAudio;
         stopAllAudioRef.current = stopAllAudio;
-    }, [targetLanguage, enabled, onTranscript, onError, duckParticipant, unduckParticipant, unduckAll, queueAudio, stopAllAudio]);
+    }, [targetLanguage, enabled, autoPlayTTS, onTranscript, onError, duckParticipant, unduckParticipant, unduckAll, queueAudio, stopAllAudio]);
 
     // Memoize participant IDs
     const participantIds = useMemo(
@@ -496,7 +498,7 @@ export function useRoomTranslation({
                 }
             } else if (event.data instanceof ArrayBuffer) {
                 // TTS audio - only play when enabled
-                if (autoPlayTTS && enabledRef.current) {
+                if (autoPlayTTSRef.current && enabledRef.current) {
                     queueAudioRef.current(event.data, undefined, undefined);
                 }
             }
@@ -517,7 +519,8 @@ export function useRoomTranslation({
         return () => {
             cleanupAll();
         };
-    }, [roomId, enabled, targetLanguage, listenerId, localParticipant?.identity, autoPlayTTS, cleanupAll, participants]);
+    // autoPlayTTS는 ref로 관리되므로 dependency에서 제외 (불필요한 재연결 방지)
+    }, [roomId, enabled, targetLanguage, listenerId, localParticipant?.identity, cleanupAll, participants]);
 
     // Effect: Manage speaker captures based on audio tracks
     useEffect(() => {

@@ -14,7 +14,7 @@ import WhiteboardCanvas from '@/components/video/whiteboard/WhiteboardCanvas';
 import ParticipantSidebar from '@/components/video/ParticipantSidebar';
 import ChatPanel, { VoiceRecord } from '@/components/video/ChatPanel';
 import SubtitleOverlay from '@/components/video/SubtitleOverlay';
-import { useRemoteParticipantTranslation, RemoteTranscriptData } from '@/app/hooks/useRemoteParticipantTranslation';
+import { useRoomTranslation, RoomTranscriptData } from '@/app/hooks/useRoomTranslation';
 import { TargetLanguage } from '@/app/hooks/useAudioWebSocket';
 
 const LIVEKIT_URL = process.env.NEXT_PUBLIC_LIVEKIT_URL || 'ws://localhost:7880';
@@ -103,7 +103,7 @@ function VideoCallContent({
     }, [localParticipant, localParticipant?.sid, sourceLanguage, user?.profileImg]);
 
     // STT/번역 결과 처리 (모든 원격 참가자)
-    const handleTranscript = useCallback((data: RemoteTranscriptData) => {
+    const handleTranscript = useCallback((data: RoomTranscriptData) => {
         console.log("[VideoCallFeature] Transcript:", data.participantName, "-", data.original, "translated:", data.translated);
 
         const key = `${data.participantId}-${data.original}`;
@@ -185,17 +185,16 @@ function VideoCallContent({
         }
     }, [isTranslationOpen, targetLanguage]);
 
-    // 원격 참가자 음성 캡처 훅 (STT는 항상 활성화, TTS는 번역 모드일 때만)
+    // Room 기반 단일 WebSocket 번역 훅 (N² → N 연결 최적화)
+    // STT는 항상 활성화, TTS는 번역 모드일 때만 재생
     const {
         isActive: isTranslationActive,
-    } = useRemoteParticipantTranslation({
-        roomId,                      // 방 ID (같은 방의 동일 언어 그룹을 묶기 위해)
-        enabled: isTranslationOpen,  // TTS 재생 여부 (번역 모드)
-        sttEnabled: true,            // STT는 항상 활성화
-        sourceLanguage,              // 발화자가 말하는 언어
-        targetLanguage,              // 듣고 싶은 언어
-        listenerId: localParticipant?.identity,  // 리스너 ID
-        autoPlayTTS: true,
+    } = useRoomTranslation({
+        roomId,                                   // 방 ID
+        enabled: true,                            // 항상 연결 유지 (STT 활성화)
+        targetLanguage,                           // 듣고 싶은 언어
+        listenerId: localParticipant?.identity,   // 리스너 ID
+        autoPlayTTS: isTranslationOpen,           // 번역 모드일 때만 TTS 재생
         onTranscript: handleTranscript,
     });
 
