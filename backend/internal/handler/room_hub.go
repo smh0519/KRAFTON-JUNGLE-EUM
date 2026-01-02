@@ -459,6 +459,8 @@ func (r *Room) handleAudio(audio *ai.AudioMessage) {
 func (r *Room) processAudio(msg *AudioMessage) {
 	r.mu.RLock()
 	stream := r.grpcStream
+	// Speaker 정보 가져오기
+	speaker := r.Speakers[msg.SpeakerID]
 	r.mu.RUnlock()
 
 	if stream == nil {
@@ -466,9 +468,28 @@ func (r *Room) processAudio(msg *AudioMessage) {
 		return
 	}
 
-	// Send audio to AI server via ChatStream's send channel
+	// Speaker 정보 결정
+	speakerName := msg.SpeakerID
+	profileImg := ""
+	if speaker != nil {
+		speakerName = speaker.Nickname
+		if speakerName == "" {
+			speakerName = speaker.ID
+		}
+		profileImg = speaker.ProfileImg
+	}
+
+	// Send audio with speaker info to AI server
+	audioChunk := &ai.AudioChunkWithSpeaker{
+		AudioData:   msg.AudioData,
+		SpeakerID:   msg.SpeakerID,
+		SpeakerName: speakerName,
+		SourceLang:  msg.SourceLang,
+		ProfileImg:  profileImg,
+	}
+
 	select {
-	case stream.SendChan <- msg.AudioData:
+	case stream.SendChan <- audioChunk:
 		// Audio sent successfully
 	default:
 		log.Printf("[Room %s] Send channel full, audio dropped from %s", r.ID, msg.SpeakerID)

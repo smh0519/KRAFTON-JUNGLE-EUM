@@ -44,7 +44,7 @@ class ConversationServicer(conversation_pb2_grpc.ConversationServiceServicer):
                 participant_id = request.participant_id
                 payload_type = request.WhichOneof('payload')
 
-                # 세션 초기화
+                # 세션 초기화 또는 스피커 업데이트
                 if payload_type == 'session_init':
                     init = request.session_init
 
@@ -55,55 +55,73 @@ class ConversationServicer(conversation_pb2_grpc.ConversationServiceServicer):
                         source_language=init.speaker.source_language,
                     )
 
-                    participants = {}
-                    for p in init.participants:
-                        participants[p.participant_id] = Participant(
-                            participant_id=p.participant_id,
-                            nickname=p.nickname,
-                            profile_img=p.profile_img,
-                            target_language=p.target_language,
-                            translation_enabled=p.translation_enabled
+                    # 기존 세션이 있는지 확인
+                    with self.lock:
+                        existing_session = self.sessions.get(current_session_id)
+
+                    if existing_session:
+                        # 기존 세션이 있으면 스피커 정보만 업데이트 (버퍼와 상태 유지)
+                        existing_session.speaker = speaker
+                        existing_session.determine_primary_strategy()
+                        session_state = existing_session
+
+                        DebugLogger.log("SPEAKER_UPDATE", f"Speaker updated", {
+                            "session": current_session_id[:8],
+                            "speaker": speaker.nickname,
+                            "source_lang": speaker.source_language,
+                        })
+                    else:
+                        # 새 세션 생성
+                        participants = {}
+                        for p in init.participants:
+                            participants[p.participant_id] = Participant(
+                                participant_id=p.participant_id,
+                                nickname=p.nickname,
+                                profile_img=p.profile_img,
+                                target_language=p.target_language,
+                                translation_enabled=p.translation_enabled
+                            )
+
+                        session_state = SessionState(
+                            session_id=current_session_id,
+                            room_id=room_id,
+                            speaker=speaker,
+                            participants=participants
                         )
 
-                    session_state = SessionState(
-                        session_id=current_session_id,
-                        room_id=room_id,
-                        speaker=speaker,
-                        participants=participants
-                    )
+                        session_state.determine_primary_strategy()
 
-                    session_state.determine_primary_strategy()
+                        with self.lock:
+                            self.sessions[current_session_id] = session_state
 
-                    with self.lock:
-                        self.sessions[current_session_id] = session_state
+                        target_langs = session_state.get_target_languages()
 
-                    target_langs = session_state.get_target_languages()
+                        DebugLogger.log("SESSION_INIT", f"Session initialized", {
+                            "session": current_session_id[:8],
+                            "speaker": speaker.nickname,
+                            "source_lang": speaker.source_language,
+                            "target_langs": list(target_langs),
+                            "strategy": session_state.primary_strategy.value,
+                            "participant_count": len(participants)
+                        })
 
-                    DebugLogger.log("SESSION_INIT", f"Session initialized", {
-                        "session": current_session_id[:8],
-                        "speaker": speaker.nickname,
-                        "source_lang": speaker.source_language,
-                        "target_langs": list(target_langs),
-                        "strategy": session_state.primary_strategy.value,
-                        "participant_count": len(participants)
-                    })
-
-                    yield conversation_pb2.ChatResponse(
-                        session_id=current_session_id,
-                        room_id=room_id,
-                        status=conversation_pb2.SessionStatus(
-                            status=conversation_pb2.SessionStatus.READY,
-                            message="Session initialized (v10)",
-                            buffering_strategy=conversation_pb2.BufferingStrategy(
-                                source_language=speaker.source_language,
-                                primary_target_language=list(target_langs)[0] if target_langs else "",
-                                strategy=conversation_pb2.BufferingStrategy.CHUNK_BASED
-                                    if session_state.primary_strategy == BufferingStrategy.CHUNK_BASED
-                                    else conversation_pb2.BufferingStrategy.SENTENCE_BASED,
-                                buffer_size_ms=0
+                        # 새 세션일 때만 READY 상태 응답
+                        yield conversation_pb2.ChatResponse(
+                            session_id=current_session_id,
+                            room_id=room_id,
+                            status=conversation_pb2.SessionStatus(
+                                status=conversation_pb2.SessionStatus.READY,
+                                message="Session initialized (v10)",
+                                buffering_strategy=conversation_pb2.BufferingStrategy(
+                                    source_language=speaker.source_language,
+                                    primary_target_language=list(target_langs)[0] if target_langs else "",
+                                    strategy=conversation_pb2.BufferingStrategy.CHUNK_BASED
+                                        if session_state.primary_strategy == BufferingStrategy.CHUNK_BASED
+                                        else conversation_pb2.BufferingStrategy.SENTENCE_BASED,
+                                    buffer_size_ms=0
+                                )
                             )
                         )
-                    )
 
                 # 오디오 청크 처리
                 elif payload_type == 'audio_chunk' and session_state:

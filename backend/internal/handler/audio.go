@@ -375,8 +375,13 @@ func (h *AudioHandler) aiUnifiedWorker(sess *session.Session) {
 					continue
 				}
 				// gRPC로 전송 (Non-blocking)
+				// 스피커 정보와 함께 전송 (기존 세션에서는 빈 값 - 기본값 사용)
+				audioChunk := &ai.AudioChunkWithSpeaker{
+					AudioData: packet.Data,
+					// 기존 단일 스피커 모드에서는 세션 초기화 시 설정된 값 사용
+				}
 				select {
-				case chatStream.SendChan <- packet.Data:
+				case chatStream.SendChan <- audioChunk:
 				default:
 					log.Printf("⚠️ [%s] gRPC send buffer full, dropping packet #%d", sess.ID, packet.SeqNum)
 				}

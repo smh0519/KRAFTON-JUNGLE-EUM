@@ -60,13 +60,22 @@ type AudioMessage struct {
 	SpeakerParticipantID string
 }
 
+// AudioChunkWithSpeaker 스피커 정보가 포함된 오디오 청크
+type AudioChunkWithSpeaker struct {
+	AudioData     []byte
+	SpeakerID     string
+	SpeakerName   string
+	SourceLang    string
+	ProfileImg    string
+}
+
 // ChatStream 양방향 스트리밍을 위한 채널 묶음
 type ChatStream struct {
-	SendChan       chan<- []byte            // 오디오 전송용
-	RecvChan       <-chan []byte            // 오디오 수신용 (레거시 호환)
-	TranscriptChan <-chan *TranscriptMessage // STT/번역 결과
-	AudioChan      <-chan *AudioMessage      // TTS 오디오 (타겟별)
-	ErrChan        <-chan error              // 에러 수신용
+	SendChan       chan<- *AudioChunkWithSpeaker // 오디오 전송용 (스피커 정보 포함)
+	RecvChan       <-chan []byte                 // 오디오 수신용 (레거시 호환)
+	TranscriptChan <-chan *TranscriptMessage     // STT/번역 결과
+	AudioChan      <-chan *AudioMessage          // TTS 오디오 (타겟별)
+	ErrChan        <-chan error                  // 에러 수신용
 	Cancel         context.CancelFunc
 }
 
@@ -206,7 +215,7 @@ func (c *GrpcClient) StartChatStream(ctx context.Context, sessionID, roomID stri
 	}
 
 	// 채널 생성
-	sendChan := make(chan []byte, SendChannelSize)
+	sendChan := make(chan *AudioChunkWithSpeaker, SendChannelSize)
 	recvChan := make(chan []byte, RecvChannelSize)           // 레거시 호환
 	transcriptChan := make(chan *TranscriptMessage, 50)       // STT/번역 결과
 	audioChan := make(chan *AudioMessage, RecvChannelSize)    // TTS 오디오
@@ -220,9 +229,12 @@ func (c *GrpcClient) StartChatStream(ctx context.Context, sessionID, roomID stri
 		defer wg.Done()
 		defer stream.CloseSend()
 
-		participantID := ""
+		// 기본 participantID (Room 모드가 아닌 경우 사용)
+		defaultParticipantID := ""
+		defaultSourceLang := ""
 		if config != nil && config.Speaker != nil {
-			participantID = config.Speaker.ParticipantID
+			defaultParticipantID = config.Speaker.ParticipantID
+			defaultSourceLang = config.Speaker.SourceLanguage
 		}
 
 		for {
@@ -231,19 +243,58 @@ func (c *GrpcClient) StartChatStream(ctx context.Context, sessionID, roomID stri
 				log.Printf("ℹ️ [%s] Send routine: context cancelled", sessionID)
 				return
 
-			case data, ok := <-sendChan:
+			case chunk, ok := <-sendChan:
 				if !ok {
 					log.Printf("ℹ️ [%s] Send routine: channel closed", sessionID)
 					return
 				}
 
-				// ChatRequest로 패키징
+				// 스피커 정보 결정 (청크에 있으면 사용, 없으면 기본값)
+				speakerID := defaultParticipantID
+				sourceLang := defaultSourceLang
+				if chunk.SpeakerID != "" {
+					speakerID = chunk.SpeakerID
+				}
+				if chunk.SourceLang != "" {
+					sourceLang = chunk.SourceLang
+				}
+
+				// 스피커 정보가 변경된 경우 SessionInit 재전송
+				// Python 서버가 스피커별로 처리할 수 있도록 함
+				if chunk.SpeakerID != "" && chunk.SourceLang != "" {
+					speakerInit := &pb.ChatRequest{
+						SessionId:     sessionID,
+						RoomId:        roomID,
+						ParticipantId: speakerID,
+						Payload: &pb.ChatRequest_SessionInit{
+							SessionInit: &pb.SessionInit{
+								SampleRate:     16000,
+								Channels:       1,
+								BitsPerSample:  16,
+								SourceLanguage: sourceLang,
+								Speaker: &pb.SpeakerInfo{
+									ParticipantId:  speakerID,
+									Nickname:       chunk.SpeakerName,
+									ProfileImg:     chunk.ProfileImg,
+									SourceLanguage: sourceLang,
+								},
+							},
+						},
+					}
+					if err := stream.Send(speakerInit); err != nil {
+						if err != io.EOF {
+							log.Printf("❌ [%s] gRPC speaker init error: %v", sessionID, err)
+						}
+					}
+				}
+
+				// ChatRequest로 오디오 전송
 				req := &pb.ChatRequest{
 					SessionId:     sessionID,
 					RoomId:        roomID,
-					ParticipantId: participantID,
+					ParticipantId: speakerID,
 					Payload: &pb.ChatRequest_AudioChunk{
-						AudioChunk: data,
+						AudioChunk: chunk.AudioData,
 					},
 				}
 
