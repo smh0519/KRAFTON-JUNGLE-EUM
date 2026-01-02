@@ -94,6 +94,23 @@ function getParticipantProfileImg(participant: RemoteParticipant | LocalParticip
     return undefined;
 }
 
+// Parse participant metadata to extract sourceLanguage (the language they speak)
+function getParticipantSourceLanguage(participant: RemoteParticipant | LocalParticipant, fallback: TargetLanguage = 'ko'): TargetLanguage {
+    try {
+        if (participant.metadata) {
+            const metadata = JSON.parse(participant.metadata);
+            // Check various possible field names for source language
+            const lang = metadata.sourceLanguage || metadata.source_language || metadata.speakingLanguage || metadata.language;
+            if (lang && typeof lang === 'string') {
+                return lang as TargetLanguage;
+            }
+        }
+    } catch {
+        // Metadata is not valid JSON
+    }
+    return fallback;
+}
+
 // RMS 계산 (음성 활동 감지용)
 function calculateRMS(samples: Float32Array): number {
     if (samples.length === 0) return 0;
@@ -147,6 +164,7 @@ export function useRemoteParticipantTranslation({
 
     // All refs for stable references
     const streamsRef = useRef<Map<string, ParticipantStream>>(new Map());
+    const creatingStreamsRef = useRef<Set<string>>(new Set());  // 중복 생성 방지용 락
     const enabledRef = useRef(enabled);
     const sttEnabledRef = useRef(sttEnabled);
     const sourceLanguageRef = useRef(sourceLanguage);
@@ -266,6 +284,7 @@ export function useRemoteParticipantTranslation({
             cleanupParticipantStream(participantId);
         });
 
+        creatingStreamsRef.current.clear();  // 모든 락 해제
         unduckAllRef.current();
         stopAudioRef.current();
         setTranscripts(new Map());
@@ -291,10 +310,15 @@ export function useRemoteParticipantTranslation({
 
         // 리샘플링 및 전송
         const resampled = resample(combined, stream.audioContext.sampleRate, SAMPLE_RATE);
+
+        // 전송 전 오디오 레벨 확인
+        const sendRms = calculateRMS(resampled);
+        const sendMax = Math.max(...Array.from(resampled).map(Math.abs));
+
         const int16Data = float32ToInt16(resampled);
 
         stream.ws.send(int16Data.buffer);
-        console.log(`[RemoteTranslation] ${stream.participantId}: Sent ${int16Data.length} samples (${(int16Data.length / SAMPLE_RATE).toFixed(1)}s) - ${reason}`);
+        console.log(`[RemoteTranslation] ${stream.participantId}: Sent ${int16Data.length} samples (${(int16Data.length / SAMPLE_RATE).toFixed(1)}s) - ${reason} | RMS=${sendRms.toFixed(6)}, Max=${sendMax.toFixed(6)}`);
     };
 
     const startAudioCapture = async (participantId: string, mediaStream: MediaStream) => {
@@ -313,10 +337,20 @@ export function useRemoteParticipantTranslation({
             const workletNode = new AudioWorkletNode(stream.audioContext, 'audio-processor');
             stream.workletNode = workletNode;
 
-            // Handle audio data - 단순히 버퍼에 축적만 함
+            // Handle audio data with debugging
             workletNode.port.onmessage = (event) => {
-                const { audioData } = event.data;
+                // 디버그 메시지 처리
+                if (event.data.debug) {
+                    console.log(`[AudioWorklet] ${participantId}: ${event.data.message}`);
+                    return;
+                }
+
+                const { audioData, rms } = event.data;
                 if (audioData) {
+                    // 오디오 레벨 로깅 (가끔)
+                    if (Math.random() < 0.02) {  // 2% 확률로 로깅
+                        console.log(`[AudioCapture] ${participantId}: buffer RMS=${rms?.toFixed(6) || 'N/A'}, samples=${audioData.length}`);
+                    }
                     stream.audioBuffer.push(new Float32Array(audioData));
                 }
             };
@@ -430,20 +464,31 @@ export function useRemoteParticipantTranslation({
 
         console.log(`[RemoteTranslation] ✓ Processing REMOTE participant: ${participantId}`);
 
-        // Check if already exists
+        // Check if already exists or being created (중복 생성 방지)
         if (streamsRef.current.has(participantId)) {
             console.log(`[RemoteTranslation] Stream already exists for ${participantId}`);
             return;
         }
 
+        if (creatingStreamsRef.current.has(participantId)) {
+            console.log(`[RemoteTranslation] Stream already being created for ${participantId}`);
+            return;
+        }
+
+        // 락 획득
+        creatingStreamsRef.current.add(participantId);
+        console.log(`[RemoteTranslation] Lock acquired for ${participantId}`);
+
         // Get microphone track
         const micPub = participant.getTrackPublication(Track.Source.Microphone);
         if (!micPub?.track?.mediaStreamTrack) {
             console.log(`[RemoteTranslation] ${participantId}: No microphone track available`);
+            creatingStreamsRef.current.delete(participantId);  // 락 해제
             return;
         }
 
         // Debug: 트랙 정보 확인
+        const mediaStreamTrack = micPub.track.mediaStreamTrack;
         console.log(`[RemoteTranslation] ${participantId}: Track info:`, {
             participantIdentity: participant.identity,
             participantIsLocal: 'isLocal' in participant ? (participant as any).isLocal : 'N/A',
@@ -451,13 +496,30 @@ export function useRemoteParticipantTranslation({
             trackSource: micPub.source,
             isSubscribed: micPub.isSubscribed,
             isEnabled: micPub.isEnabled,
+            // MediaStreamTrack 상세 정보
+            mediaTrackId: mediaStreamTrack.id,
+            mediaTrackKind: mediaStreamTrack.kind,
+            mediaTrackLabel: mediaStreamTrack.label,
+            mediaTrackEnabled: mediaStreamTrack.enabled,
+            mediaTrackMuted: mediaStreamTrack.muted,
+            mediaTrackReadyState: mediaStreamTrack.readyState,
         });
 
         try {
-            console.log(`[RemoteTranslation] Creating stream for ${participantId}`);
+            // 원격 참가자의 sourceLanguage를 그들의 메타데이터에서 가져옴
+            // fallback으로 현재 설정된 sourceLanguage 사용
+            const remoteSourceLang = getParticipantSourceLanguage(participant, sourceLanguageRef.current);
+
+            console.log(`[RemoteTranslation] Creating stream for ${participantId}`, {
+                remoteSourceLang,  // 원격 참가자가 말하는 언어
+                myTargetLang: targetLanguageRef.current,  // 내가 듣고 싶은 언어
+                participantMetadata: participant.metadata,
+            });
 
             // Create WebSocket with participantId and language params
-            const wsUrl = `${WS_BASE_URL}?sourceLang=${sourceLanguageRef.current}&targetLang=${targetLanguageRef.current}&participantId=${encodeURIComponent(participantId)}`;
+            // sourceLang = 원격 참가자가 말하는 언어 (그들의 메타데이터에서)
+            // targetLang = 내가 듣고 싶은 언어 (번역 대상)
+            const wsUrl = `${WS_BASE_URL}?sourceLang=${remoteSourceLang}&targetLang=${targetLanguageRef.current}&participantId=${encodeURIComponent(participantId)}`;
             const ws = new WebSocket(wsUrl);
             ws.binaryType = 'arraybuffer';
 
@@ -483,6 +545,8 @@ export function useRemoteParticipantTranslation({
             };
 
             streamsRef.current.set(participantId, stream);
+            creatingStreamsRef.current.delete(participantId);  // 락 해제 (스트림 등록 완료)
+            console.log(`[RemoteTranslation] Lock released for ${participantId} (stream registered)`);
 
             // WebSocket handlers
             ws.onopen = async () => {
@@ -582,6 +646,7 @@ export function useRemoteParticipantTranslation({
             const error = err instanceof Error ? err : new Error(`Failed to create stream for ${participantId}`);
             setError(error);
             onErrorRef.current?.(error);
+            creatingStreamsRef.current.delete(participantId);  // 락 해제
         }
     };
 

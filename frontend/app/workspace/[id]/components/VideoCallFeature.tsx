@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     LiveKitRoom,
     RoomAudioRenderer,
+    useLocalParticipant,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { apiClient } from '@/app/lib/api';
@@ -48,6 +49,38 @@ function VideoCallContent({
     const [currentOriginal, setCurrentOriginal] = useState<string | null>(null);
     const lastTranscriptRef = useRef<string | null>(null);
     const transcriptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // 로컬 참가자 접근
+    const { localParticipant } = useLocalParticipant();
+
+    // 로컬 참가자의 메타데이터에 sourceLanguage 저장 (다른 참가자가 알 수 있도록)
+    useEffect(() => {
+        if (localParticipant) {
+            try {
+                // 기존 메타데이터 파싱 (있으면)
+                let existingMetadata: Record<string, unknown> = {};
+                if (localParticipant.metadata) {
+                    try {
+                        existingMetadata = JSON.parse(localParticipant.metadata);
+                    } catch {
+                        // 파싱 실패 시 빈 객체 사용
+                    }
+                }
+
+                // sourceLanguage 추가/업데이트
+                const newMetadata = {
+                    ...existingMetadata,
+                    sourceLanguage: sourceLanguage,
+                    profileImg: user?.profileImg,
+                };
+
+                localParticipant.setMetadata(JSON.stringify(newMetadata));
+                console.log(`[VideoCallContent] Updated local participant metadata:`, newMetadata);
+            } catch (err) {
+                console.error('[VideoCallContent] Failed to update metadata:', err);
+            }
+        }
+    }, [localParticipant, sourceLanguage, user?.profileImg]);
 
     // STT/번역 결과 처리 (모든 원격 참가자)
     const handleTranscript = useCallback((data: RemoteTranscriptData) => {

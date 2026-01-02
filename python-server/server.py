@@ -1,13 +1,13 @@
 """
-Python gRPC AI Server - v7 (Production)
+Python gRPC AI Server - v9 (Production)
 
 Features:
 - Adaptive Buffering based on Language Topology
 - Multi-user Target Language Support
 - VAD-based Sentence Detection
+- Amazon Transcribe Streaming (STT)
+- Qwen3-8B Translation (Alibaba)
 - Amazon Polly TTS
-- Faster-Whisper Large-v3 (CUDA)
-- NLLB-200-3.3B Translation (Meta's No Language Left Behind)
 """
 
 import sys
@@ -27,10 +27,15 @@ import grpc
 import numpy as np
 import torch
 import boto3
-from faster_whisper import WhisperModel
+import webrtcvad
 
-# NLLB Translation Model
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+# Amazon Transcribe Streaming
+from amazon_transcribe.client import TranscribeStreamingClient
+from amazon_transcribe.handlers import TranscriptResultStreamHandler
+from amazon_transcribe.model import TranscriptEvent
+
+# Qwen3 Translation Model
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from generated import conversation_pb2
@@ -51,36 +56,51 @@ class Config:
     CHUNK_DURATION_MS = 1500  # 1.5초 청크
     CHUNK_BYTES = int(BYTES_PER_SECOND * CHUNK_DURATION_MS / 1000)  # 48000 bytes
 
-    SENTENCE_MAX_DURATION_MS = 8000  # 문장 최대 대기 시간
-    SENTENCE_MAX_BYTES = int(BYTES_PER_SECOND * SENTENCE_MAX_DURATION_MS / 1000)
+    # 실시간 번역을 위해 최대 버퍼 시간을 3초로 제한
+    SENTENCE_MAX_DURATION_MS = 3000  # 문장 최대 대기 시간 (3초)
+    SENTENCE_MAX_BYTES = int(BYTES_PER_SECOND * SENTENCE_MAX_DURATION_MS / 1000)  # 96000 bytes
 
     # VAD settings
     SILENCE_THRESHOLD_RMS = 30  # RMS 침묵 임계값 (낮출수록 더 민감하게 음성 감지)
-    SILENCE_DURATION_MS = 700    # 문장 끝 감지용 침묵 지속 시간
+    SILENCE_DURATION_MS = 500   # 문장 끝 감지용 침묵 지속 시간 (500ms로 단축)
     SILENCE_FRAMES = int(SILENCE_DURATION_MS / 100)  # 100ms 프레임 기준
 
-    # Model settings
-    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "large-v3")
-    WHISPER_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-    WHISPER_COMPUTE_TYPE = "float16" if torch.cuda.is_available() else "int8"
+    # Amazon Transcribe Language Codes
+    TRANSCRIBE_LANG_CODES = {
+        "ko": "ko-KR",    # Korean
+        "en": "en-US",    # English (US)
+        "ja": "ja-JP",    # Japanese
+        "zh": "zh-CN",    # Chinese (Mandarin)
+        "es": "es-US",    # Spanish (US)
+        "fr": "fr-FR",    # French
+        "de": "de-DE",    # German
+        "pt": "pt-BR",    # Portuguese (Brazil)
+        "ru": "ru-RU",    # Russian
+        "ar": "ar-SA",    # Arabic (Saudi Arabia)
+        "hi": "hi-IN",    # Hindi
+        "tr": "tr-TR",    # Turkish
+    }
 
-    # NLLB Translation Model (Meta's No Language Left Behind)
-    NLLB_MODEL = os.getenv("NLLB_MODEL", "facebook/nllb-200-3.3B")
+    # Qwen3 Translation Model (Alibaba)
+    QWEN_MODEL = os.getenv("QWEN_MODEL", "Qwen/Qwen3-8B")
 
-    # NLLB Language Codes
-    NLLB_LANG_CODES = {
-        "ko": "kor_Hang",  # Korean
-        "en": "eng_Latn",  # English
-        "ja": "jpn_Jpan",  # Japanese
-        "zh": "zho_Hans",  # Chinese (Simplified)
-        "es": "spa_Latn",  # Spanish
-        "fr": "fra_Latn",  # French
-        "de": "deu_Latn",  # German
-        "pt": "por_Latn",  # Portuguese
-        "ru": "rus_Cyrl",  # Russian
-        "ar": "arb_Arab",  # Arabic
-        "hi": "hin_Deva",  # Hindi
-        "tr": "tur_Latn",  # Turkish
+    # GPU Device
+    GPU_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Language Names (for Qwen3 prompts)
+    LANGUAGE_NAMES = {
+        "ko": "Korean",
+        "en": "English",
+        "ja": "Japanese",
+        "zh": "Chinese",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "pt": "Portuguese",
+        "ru": "Russian",
+        "ar": "Arabic",
+        "hi": "Hindi",
+        "tr": "Turkish",
     }
 
     # AWS Polly
@@ -88,7 +108,29 @@ class Config:
 
     # gRPC
     GRPC_PORT = int(os.getenv("GRPC_PORT", 50051))
-    MAX_WORKERS = int(os.getenv("MAX_WORKERS", 8))
+    MAX_WORKERS = int(os.getenv("MAX_WORKERS", 32))  # 동시 세션 처리를 위해 증가
+
+    # Timeouts (seconds)
+    STT_TIMEOUT = 30  # Amazon Transcribe 타임아웃
+    TRANSLATION_TIMEOUT = 15  # 번역 타임아웃
+    TTS_TIMEOUT = 10  # TTS 타임아웃
+
+    # Filler words to skip TTS (common interjections/fillers)
+    FILLER_WORDS = {
+        # Korean fillers
+        "네", "예", "응", "음", "어", "아", "으", "흠", "뭐", "그", "저",
+        "아아", "어어", "음음", "네네", "예예", "그래", "응응",
+        # English fillers
+        "uh", "um", "ah", "oh", "hmm", "yeah", "yes", "no", "ok", "okay",
+        "well", "so", "like", "you know", "i mean",
+        # Japanese fillers
+        "あ", "え", "う", "ん", "はい", "うん", "ええ", "まあ",
+        # Chinese fillers
+        "嗯", "啊", "哦", "呃", "好", "是",
+    }
+
+    # Minimum text length for TTS (characters)
+    MIN_TTS_TEXT_LENGTH = 2
 
 
 # =============================================================================
@@ -151,15 +193,36 @@ class LanguageTopology:
 
 
 # =============================================================================
-# Voice Activity Detection (VAD)
+# Voice Activity Detection (VAD) - WebRTC VAD
 # =============================================================================
 
 class VADProcessor:
-    """음성 활동 감지 및 문장 경계 탐지"""
+    """
+    WebRTC VAD 기반 음성 활동 감지
 
-    def __init__(self):
-        self.silence_frames = 0
+    - 30ms 프레임 단위로 음성 여부 판단
+    - 음성이 감지된 프레임만 축적
+    - 침묵 지속 시 문장 끝으로 판단
+    """
+
+    def __init__(self, aggressiveness: int = 2):
+        """
+        Args:
+            aggressiveness: VAD 민감도 (0-3, 3이 가장 공격적으로 비음성 제거)
+        """
+        self.vad = webrtcvad.Vad(aggressiveness)
+        self.sample_rate = Config.SAMPLE_RATE
+        self.frame_duration_ms = 30  # WebRTC VAD는 10, 20, 30ms 지원
+        self.frame_size = int(self.sample_rate * self.frame_duration_ms / 1000) * 2  # bytes
+
+        # 상태
         self.is_speaking = False
+        self.silence_frames = 0
+        self.speech_frames = 0
+
+        # 설정
+        self.min_speech_frames = 3    # 최소 음성 프레임 (노이즈 필터링)
+        self.max_silence_frames = int(Config.SILENCE_DURATION_MS / self.frame_duration_ms)  # 700ms / 30ms = 23 프레임
 
     def calculate_rms(self, audio_bytes: bytes) -> float:
         """int16 오디오 데이터의 RMS 계산"""
@@ -168,35 +231,103 @@ class VADProcessor:
         arr = np.frombuffer(audio_bytes, dtype=np.int16)
         return float(np.sqrt(np.mean(arr.astype(np.float64) ** 2)))
 
-    def process_chunk(self, audio_bytes: bytes, chunk_duration_ms: int = 100) -> Tuple[bool, bool]:
+    def has_speech(self, audio_bytes: bytes) -> bool:
         """
-        오디오 청크 처리
+        오디오 청크에 음성이 있는지 확인
+
+        Args:
+            audio_bytes: int16 PCM 오디오 데이터
 
         Returns:
-            (is_speech, is_sentence_end): 음성 존재 여부, 문장 끝 감지 여부
+            음성 존재 여부
         """
-        rms = self.calculate_rms(audio_bytes)
-        is_speech = rms >= Config.SILENCE_THRESHOLD_RMS
+        if len(audio_bytes) < self.frame_size:
+            return False
 
-        if is_speech:
-            if not self.is_speaking:
-                self.is_speaking = True
+        speech_frame_count = 0
+        total_frames = 0
+
+        for i in range(0, len(audio_bytes) - self.frame_size + 1, self.frame_size):
+            frame = audio_bytes[i:i + self.frame_size]
+            if len(frame) == self.frame_size:
+                total_frames += 1
+                try:
+                    if self.vad.is_speech(frame, self.sample_rate):
+                        speech_frame_count += 1
+                except Exception:
+                    # VAD 오류 시 RMS 폴백
+                    rms = self.calculate_rms(frame)
+                    if rms >= Config.SILENCE_THRESHOLD_RMS:
+                        speech_frame_count += 1
+
+        # 30% 이상의 프레임이 음성이면 음성으로 판단
+        if total_frames > 0:
+            speech_ratio = speech_frame_count / total_frames
+            return speech_ratio >= 0.3
+        return False
+
+    def filter_speech(self, audio_bytes: bytes) -> bytes:
+        """
+        오디오에서 음성 구간만 추출
+
+        Args:
+            audio_bytes: int16 PCM 오디오 데이터
+
+        Returns:
+            음성 프레임만 포함된 오디오 데이터
+        """
+        if len(audio_bytes) < self.frame_size:
+            return audio_bytes
+
+        speech_frames = []
+
+        for i in range(0, len(audio_bytes) - self.frame_size + 1, self.frame_size):
+            frame = audio_bytes[i:i + self.frame_size]
+            if len(frame) == self.frame_size:
+                try:
+                    if self.vad.is_speech(frame, self.sample_rate):
+                        speech_frames.append(frame)
+                except Exception:
+                    # VAD 오류 시 RMS 폴백
+                    rms = self.calculate_rms(frame)
+                    if rms >= Config.SILENCE_THRESHOLD_RMS:
+                        speech_frames.append(frame)
+
+        if speech_frames:
+            return b''.join(speech_frames)
+        return b''
+
+    def process_chunk(self, audio_bytes: bytes) -> Tuple[bool, bool]:
+        """
+        오디오 청크 처리 및 문장 경계 탐지
+
+        Returns:
+            (has_speech, is_sentence_end): 음성 존재 여부, 문장 끝 감지 여부
+        """
+        has_speech = self.has_speech(audio_bytes)
+
+        if has_speech:
+            self.speech_frames += 1
             self.silence_frames = 0
+            if not self.is_speaking and self.speech_frames >= self.min_speech_frames:
+                self.is_speaking = True
             return True, False
         else:
             if self.is_speaking:
                 self.silence_frames += 1
-                # 일정 시간 침묵이 지속되면 문장 끝으로 판단
-                if self.silence_frames >= Config.SILENCE_FRAMES:
+                if self.silence_frames >= self.max_silence_frames:
+                    # 침묵이 지속되면 문장 끝
                     self.is_speaking = False
+                    self.speech_frames = 0
                     self.silence_frames = 0
-                    return False, True  # 문장 끝
+                    return False, True
             return False, False
 
     def reset(self):
         """상태 초기화"""
-        self.silence_frames = 0
         self.is_speaking = False
+        self.silence_frames = 0
+        self.speech_frames = 0
 
 
 # =============================================================================
@@ -281,6 +412,62 @@ class SessionState:
 # Model Loaders
 # =============================================================================
 
+class AsyncLoopManager:
+    """
+    전용 asyncio 이벤트 루프 관리자
+
+    별도 스레드에서 이벤트 루프를 실행하여 asyncio.run() 블로킹 문제 해결
+    """
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
+    def initialize(self):
+        if self._initialized:
+            return
+
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(target=self._run_loop, daemon=True)
+        self.thread.start()
+        self._initialized = True
+
+    def _run_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
+    def run_async(self, coro, timeout: float = 30.0):
+        """
+        비동기 코루틴을 실행하고 결과를 반환
+
+        Args:
+            coro: 실행할 코루틴
+            timeout: 타임아웃 (초)
+
+        Returns:
+            코루틴 결과
+        """
+        future = asyncio.run_coroutine_threadsafe(coro, self.loop)
+        try:
+            return future.result(timeout=timeout)
+        except asyncio.TimeoutError:
+            future.cancel()
+            raise TimeoutError(f"Async operation timed out after {timeout}s")
+        except Exception as e:
+            raise e
+
+    def shutdown(self):
+        if self._initialized and self.loop.is_running():
+            self.loop.call_soon_threadsafe(self.loop.stop)
+            self.thread.join(timeout=5)
+
+
 class ModelManager:
     """모델 로딩 및 관리"""
 
@@ -303,25 +490,61 @@ class ModelManager:
         print("Loading AI Models...")
         print("=" * 60)
 
-        # STT: Faster-Whisper
-        print(f"[1/3] Loading Whisper {Config.WHISPER_MODEL}...")
-        print(f"      Device: {Config.WHISPER_DEVICE}, Compute: {Config.WHISPER_COMPUTE_TYPE}")
-        self.stt_model = WhisperModel(
-            Config.WHISPER_MODEL,
-            device=Config.WHISPER_DEVICE,
-            compute_type=Config.WHISPER_COMPUTE_TYPE
-        )
-        print("      ✓ Whisper loaded")
+        # Async Loop Manager 초기화
+        print("[0/3] Initializing Async Loop Manager...")
+        self.async_manager = AsyncLoopManager()
+        self.async_manager.initialize()
+        print("      ✓ Async Loop Manager initialized")
 
-        # Translation: NLLB-200 (Meta's No Language Left Behind)
-        print(f"[2/3] Loading NLLB {Config.NLLB_MODEL}...")
-        self.nllb_tokenizer = AutoTokenizer.from_pretrained(Config.NLLB_MODEL)
-        self.nllb_model = AutoModelForSeq2SeqLM.from_pretrained(
-            Config.NLLB_MODEL,
-            torch_dtype=torch.float16 if Config.WHISPER_DEVICE == "cuda" else torch.float32,
-            device_map="auto",
+        # STT: Amazon Transcribe Streaming
+        print("[1/3] Initializing Amazon Transcribe Streaming...")
+        self.transcribe_region = Config.AWS_REGION
+        print(f"      Region: {self.transcribe_region}")
+        print("      ✓ Amazon Transcribe initialized")
+
+        # Translation: Qwen3-8B (Alibaba)
+        print(f"[2/3] Loading Qwen3 {Config.QWEN_MODEL}...")
+        self.qwen_tokenizer = AutoTokenizer.from_pretrained(
+            Config.QWEN_MODEL,
+            trust_remote_code=True
         )
-        print("      ✓ NLLB loaded (~7GB VRAM)")
+
+        # GPU 메모리 확인 후 로딩 방식 결정
+        if Config.GPU_DEVICE == "cuda":
+            gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"      GPU Memory: {gpu_mem:.1f}GB")
+
+            if gpu_mem >= 20:  # 20GB 이상이면 전체 GPU 로딩
+                self.qwen_model = AutoModelForCausalLM.from_pretrained(
+                    Config.QWEN_MODEL,
+                    torch_dtype=torch.float16,
+                    device_map={"": 0},  # 전체를 GPU 0에 로드
+                    trust_remote_code=True,
+                )
+            else:  # 메모리 부족시 4bit 양자화
+                from transformers import BitsAndBytesConfig
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                )
+                self.qwen_model = AutoModelForCausalLM.from_pretrained(
+                    Config.QWEN_MODEL,
+                    quantization_config=quantization_config,
+                    device_map={"": 0},
+                    trust_remote_code=True,
+                )
+                print("      Using 4-bit quantization (low VRAM)")
+        else:
+            self.qwen_model = AutoModelForCausalLM.from_pretrained(
+                Config.QWEN_MODEL,
+                torch_dtype=torch.float32,
+                trust_remote_code=True,
+            )
+
+        self.qwen_model.eval()
+        print("      ✓ Qwen3-8B loaded")
 
         # TTS: Amazon Polly
         print("[3/3] Initializing Amazon Polly...")
@@ -334,9 +557,59 @@ class ModelManager:
 
         self._initialized = True
 
+        # 워밍업 실행
+        self._warmup()
+
+    def _warmup(self):
+        """
+        모델 워밍업 - 첫 번째 추론 지연을 방지
+
+        CUDA 커널 컴파일, 메모리 할당 등이 첫 추론 시 발생하므로
+        서버 시작 시 미리 실행하여 실제 요청 시 빠른 응답 보장
+        """
+        print("\n" + "=" * 60)
+        print("Warming up models...")
+        print("=" * 60)
+
+        warmup_start = time.time()
+
+        # 1. Qwen3 Translation 워밍업
+        print("[Warmup] Translation model (Qwen3)...")
+        try:
+            warmup_text = "안녕하세요"
+            _ = self.translate(warmup_text, "ko", "en")
+            print("         ✓ Translation warmup complete")
+        except Exception as e:
+            print(f"         ⚠ Translation warmup failed: {e}")
+
+        # 2. Amazon Polly TTS 워밍업
+        print("[Warmup] TTS model (Polly)...")
+        try:
+            warmup_tts = "Hello"
+            _, _ = self.synthesize_speech(warmup_tts, "en")
+            print("         ✓ TTS warmup complete")
+        except Exception as e:
+            print(f"         ⚠ TTS warmup failed: {e}")
+
+        # 3. WebRTC VAD 워밍업
+        print("[Warmup] VAD processor...")
+        try:
+            vad = webrtcvad.Vad(2)
+            # 30ms 프레임 (16kHz, 16-bit = 960 bytes)
+            dummy_audio = bytes(960)
+            _ = vad.is_speech(dummy_audio, 16000)
+            print("         ✓ VAD warmup complete")
+        except Exception as e:
+            print(f"         ⚠ VAD warmup failed: {e}")
+
+        warmup_time = time.time() - warmup_start
+        print("=" * 60)
+        print(f"Warmup completed in {warmup_time:.2f}s")
+        print("=" * 60 + "\n")
+
     def transcribe(self, audio_data: np.ndarray, language: str) -> Tuple[str, float]:
         """
-        음성을 텍스트로 변환
+        음성을 텍스트로 변환 (Amazon Transcribe Streaming)
 
         Args:
             audio_data: float32 normalized audio array
@@ -346,48 +619,120 @@ class ModelManager:
             (text, confidence)
         """
         try:
-            segments, info = self.stt_model.transcribe(
-                audio_data,
-                language=language,
-                beam_size=5,
-                best_of=5,  # 더 많은 후보 탐색
-                patience=1.0,  # 더 인내심 있게 탐색
-                vad_filter=True,
-                vad_parameters={
-                    "min_silence_duration_ms": 300,  # 더 짧은 침묵도 허용
-                    "speech_pad_ms": 300,  # 음성 패딩 증가
-                    "threshold": 0.3,  # VAD 임계값 낮춤 (더 민감)
-                },
-                condition_on_previous_text=False,
-                no_speech_threshold=0.5,  # 음성 없음 임계값 낮춤
-            )
+            # ========== 디버그: 오디오 분석 ==========
+            audio_rms = np.sqrt(np.mean(audio_data ** 2))
+            audio_max = np.max(np.abs(audio_data))
+            audio_duration = len(audio_data) / Config.SAMPLE_RATE
 
-            text_parts = []
-            total_confidence = 0.0
-            segment_count = 0
+            print(f"[STT DEBUG] Audio: {len(audio_data)} samples ({audio_duration:.2f}s), "
+                  f"RMS={audio_rms:.4f}, Max={audio_max:.4f}")
 
-            for seg in segments:
-                text = seg.text.strip()
-                if text and text not in ["...", "…", "."]:
-                    text_parts.append(text)
-                    total_confidence += seg.avg_logprob
-                    segment_count += 1
-
-            if not text_parts:
+            # 완전 침묵만 스킵 (매우 낮은 임계값)
+            if audio_rms < 0.001:
+                print(f"[STT] Skipped (silence): RMS={audio_rms:.6f}")
                 return "", 0.0
 
-            full_text = " ".join(text_parts)
-            avg_confidence = np.exp(total_confidence / segment_count) if segment_count > 0 else 0.0
+            # Amazon Transcribe 언어 코드 변환
+            transcribe_lang = Config.TRANSCRIBE_LANG_CODES.get(language, "en-US")
+            print(f"[STT] Using Amazon Transcribe with language: {transcribe_lang}")
 
-            return full_text, float(avg_confidence)
+            # 오디오를 int16 bytes로 변환
+            audio_int16 = (audio_data * 32768).clip(-32768, 32767).astype(np.int16)
+            audio_bytes = audio_int16.tobytes()
+
+            # 전용 이벤트 루프에서 스트리밍 전사 실행 (타임아웃 적용)
+            result_text, confidence = self.async_manager.run_async(
+                self._transcribe_streaming(audio_bytes, transcribe_lang),
+                timeout=Config.STT_TIMEOUT
+            )
+
+            if result_text:
+                print(f"[STT] Final result: \"{result_text}\" (confidence={confidence:.2f})")
+            else:
+                print(f"[STT] No speech detected")
+
+            return result_text, confidence
+
+        except TimeoutError as e:
+            print(f"[STT Timeout] {e}")
+            return "", 0.0
+        except Exception as e:
+            import traceback
+            print(f"[STT Error] {e}")
+            print(f"[STT Error Traceback] {traceback.format_exc()}")
+            return "", 0.0
+
+    async def _transcribe_streaming(self, audio_bytes: bytes, language_code: str) -> Tuple[str, float]:
+        """
+        Amazon Transcribe Streaming을 사용한 음성 전사
+
+        Args:
+            audio_bytes: int16 PCM audio bytes
+            language_code: Amazon Transcribe 언어 코드 (예: "ko-KR", "en-US")
+
+        Returns:
+            (text, confidence)
+        """
+        client = TranscribeStreamingClient(region=self.transcribe_region)
+
+        # 전사 결과를 수집할 핸들러
+        class ResultHandler(TranscriptResultStreamHandler):
+            def __init__(self, stream):
+                super().__init__(stream)
+                self.transcripts: List[Tuple[str, float]] = []  # (text, confidence)
+
+            async def handle_transcript_event(self, event: TranscriptEvent):
+                results = event.transcript.results
+                for result in results:
+                    if not result.is_partial:  # 최종 결과만 처리
+                        for alt in result.alternatives:
+                            text = alt.transcript.strip()
+                            conf = alt.confidence if hasattr(alt, 'confidence') and alt.confidence else 0.95
+                            if text:
+                                self.transcripts.append((text, conf))
+                                print(f"[Transcribe] Final: \"{text}\" (conf={conf:.2f})")
+
+        try:
+            # 스트리밍 세션 시작
+            stream = await client.start_stream_transcription(
+                language_code=language_code,
+                media_sample_rate_hz=Config.SAMPLE_RATE,
+                media_encoding="pcm",
+            )
+
+            handler = ResultHandler(stream.output_stream)
+
+            # 오디오를 청크로 나누어 전송 (8KB 청크)
+            chunk_size = 8192
+            async def send_audio():
+                for i in range(0, len(audio_bytes), chunk_size):
+                    chunk = audio_bytes[i:i + chunk_size]
+                    await stream.input_stream.send_audio_event(audio_chunk=chunk)
+                await stream.input_stream.end_stream()
+
+            # 오디오 전송과 결과 수신을 동시에 처리
+            await asyncio.gather(
+                send_audio(),
+                handler.handle_events()
+            )
+
+            # 결과 조합
+            if handler.transcripts:
+                texts = [t[0] for t in handler.transcripts]
+                confidences = [t[1] for t in handler.transcripts]
+                full_text = " ".join(texts)
+                avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+                return full_text, avg_confidence
+            else:
+                return "", 0.0
 
         except Exception as e:
-            print(f"[STT Error] {e}")
+            print(f"[Transcribe Error] {e}")
             return "", 0.0
 
     def translate(self, text: str, source_lang: str, target_lang: str) -> str:
         """
-        텍스트 번역 (NLLB-200)
+        텍스트 번역 (Qwen3-8B)
 
         Args:
             text: 원본 텍스트
@@ -400,47 +745,86 @@ class ModelManager:
         if not text.strip():
             return ""
 
-        # NLLB 언어 코드로 변환
-        source_nllb = Config.NLLB_LANG_CODES.get(source_lang, "eng_Latn")
-        target_nllb = Config.NLLB_LANG_CODES.get(target_lang, "eng_Latn")
-
         # 같은 언어면 번역 불필요
         if source_lang == target_lang:
             return text
 
+        # 언어 이름 가져오기
+        source_name = Config.LANGUAGE_NAMES.get(source_lang, "English")
+        target_name = Config.LANGUAGE_NAMES.get(target_lang, "English")
+
         try:
-            # 소스 언어 설정
-            self.nllb_tokenizer.src_lang = source_nllb
+            # 번역 프롬프트 구성 (간결하고 직접적)
+            prompt = f"Translate the following {source_name} text to {target_name}. Output only the translation, nothing else.\n\n{text}"
+
+            # Qwen3 chat 형식으로 메시지 구성
+            messages = [
+                {"role": "user", "content": prompt}
+            ]
 
             # 토크나이즈
-            inputs = self.nllb_tokenizer(
-                text,
+            input_text = self.qwen_tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=False  # 번역은 thinking 불필요
+            )
+            inputs = self.qwen_tokenizer(
+                input_text,
                 return_tensors="pt",
-                padding=True,
                 truncation=True,
                 max_length=512
-            ).to(self.nllb_model.device)
-
-            # 타겟 언어 토큰 ID
-            forced_bos_token_id = self.nllb_tokenizer.convert_tokens_to_ids(target_nllb)
+            ).to(self.qwen_model.device)
 
             # 번역 생성
             with torch.no_grad():
-                outputs = self.nllb_model.generate(
+                outputs = self.qwen_model.generate(
                     **inputs,
-                    forced_bos_token_id=forced_bos_token_id,
                     max_new_tokens=256,
-                    num_beams=5,
-                    early_stopping=True,
+                    do_sample=False,  # 결정적 출력
+                    temperature=None,
+                    top_p=None,
+                    pad_token_id=self.qwen_tokenizer.eos_token_id,
                 )
 
-            # 디코딩
-            result = self.nllb_tokenizer.decode(outputs[0], skip_special_tokens=True)
-            return result.strip()
+            # 디코딩 (입력 부분 제외)
+            input_len = inputs["input_ids"].shape[1]
+            result = self.qwen_tokenizer.decode(
+                outputs[0][input_len:],
+                skip_special_tokens=True
+            ).strip()
+
+            # 결과 정제 (불필요한 접두어 제거)
+            result = self._clean_translation(result)
+
+            print(f"[Translation] {source_lang}→{target_lang}: \"{text}\" → \"{result}\"")
+            return result
 
         except Exception as e:
+            import traceback
             print(f"[Translation Error] {e}")
+            print(f"[Translation Traceback] {traceback.format_exc()}")
             return ""
+
+    def _clean_translation(self, text: str) -> str:
+        """번역 결과에서 불필요한 접두어 제거"""
+        # 흔한 접두어 패턴 제거
+        prefixes = [
+            "Here is the translation:",
+            "Here's the translation:",
+            "Translation:",
+            "The translation is:",
+            "Translated text:",
+        ]
+        result = text.strip()
+        for prefix in prefixes:
+            if result.lower().startswith(prefix.lower()):
+                result = result[len(prefix):].strip()
+        # 따옴표 제거
+        if (result.startswith('"') and result.endswith('"')) or \
+           (result.startswith("'") and result.endswith("'")):
+            result = result[1:-1]
+        return result.strip()
 
     def synthesize_speech(self, text: str, target_lang: str) -> Tuple[bytes, int]:
         """
@@ -456,30 +840,31 @@ class ModelManager:
         if not text.strip():
             return b"", 0
 
-        # Polly 음성 ID 매핑
-        voice_map = {
-            "ko": "Seoyeon",
-            "en": "Joanna",
-            "zh": "Zhiyu",
-            "ja": "Mizuki",
-            "es": "Lucia",
-            "fr": "Lea",
-            "de": "Vicki",
-            "pt": "Camila",
-            "ru": "Tatyana",
-            "ar": "Zeina",
-            "hi": "Aditi",
-            "tr": "Filiz",
+        # Polly 음성 ID 및 엔진 매핑
+        # Neural 지원 음성: Seoyeon(ko), Joanna(en), Zhiyu(zh), Takumi(ja), Lucia(es), Lea(fr), Vicki(de), Camila(pt)
+        voice_config = {
+            "ko": ("Seoyeon", "neural"),
+            "en": ("Joanna", "neural"),
+            "zh": ("Zhiyu", "neural"),
+            "ja": ("Takumi", "neural"),  # Mizuki는 neural 미지원, Takumi 사용
+            "es": ("Lucia", "neural"),
+            "fr": ("Lea", "neural"),
+            "de": ("Vicki", "neural"),
+            "pt": ("Camila", "neural"),
+            "ru": ("Tatyana", "standard"),  # neural 미지원
+            "ar": ("Zeina", "standard"),    # neural 미지원
+            "hi": ("Aditi", "standard"),    # neural 미지원
+            "tr": ("Filiz", "standard"),    # neural 미지원
         }
 
-        voice_id = voice_map.get(target_lang, "Joanna")
+        voice_id, engine = voice_config.get(target_lang, ("Joanna", "neural"))
 
         try:
             response = self.polly_client.synthesize_speech(
                 Text=text,
                 OutputFormat="mp3",
                 VoiceId=voice_id,
-                Engine="neural" if voice_id in ["Joanna", "Seoyeon", "Zhiyu", "Mizuki"] else "standard",
+                Engine=engine,
                 SampleRate="24000",
             )
 
@@ -593,54 +978,76 @@ class ConversationServicer(conversation_pb2_grpc.ConversationServiceServicer):
                         )
                     )
 
-                # 오디오 청크 처리
+                # 오디오 청크 처리 (VAD 전처리 적용)
                 elif payload_type == 'audio_chunk' and session_state:
                     audio_chunk = request.audio_chunk
-                    session_state.audio_buffer.extend(audio_chunk)
+                    chunk_bytes = len(audio_chunk)
+                    audio_duration = chunk_bytes / Config.BYTES_PER_SECOND
 
-                    # VAD 처리 (100ms 단위)
-                    chunk_size = Config.BYTES_PER_SECOND // 10  # 100ms
-                    is_sentence_end = False
+                    # VAD로 음성 여부 확인
+                    vad = session_state.vad
+                    has_speech, is_sentence_end = vad.process_chunk(audio_chunk)
 
-                    while len(session_state.audio_buffer) >= chunk_size:
-                        vad_chunk = bytes(session_state.audio_buffer[:chunk_size])
-                        del session_state.audio_buffer[:chunk_size]
+                    # 처리 임계값 (최소 0.5초, 최대 3초)
+                    min_speech_bytes = int(Config.BYTES_PER_SECOND * 0.5)  # 0.5초
+                    max_buffer_bytes = Config.SENTENCE_MAX_BYTES  # 3초
 
-                        is_speech, sentence_end = session_state.vad.process_chunk(vad_chunk)
+                    if has_speech:
+                        # 음성 프레임만 추출하여 버퍼에 누적
+                        speech_audio = vad.filter_speech(audio_chunk)
+                        if speech_audio:
+                            session_state.audio_buffer.extend(speech_audio)
+                            speech_duration = len(speech_audio) / Config.BYTES_PER_SECOND
+                            buffer_total = len(session_state.audio_buffer) / Config.BYTES_PER_SECOND
+                            print(f"[VAD] Speech: +{speech_duration:.2f}s, buffer: {buffer_total:.2f}s")
 
-                        if sentence_end:
-                            is_sentence_end = True
-                            break
-
-                    # 버퍼링 전략에 따른 처리
+                    # 문장 끝 감지 또는 버퍼가 3초 이상이면 처리
                     should_process = False
-                    buffer_bytes = len(session_state.audio_buffer)
+                    process_reason = ""
 
-                    if session_state.primary_strategy == BufferingStrategy.CHUNK_BASED:
-                        # 1.5초 단위로 처리
-                        should_process = buffer_bytes >= Config.CHUNK_BYTES
-                    else:
-                        # 문장 완성 또는 최대 버퍼 도달 시 처리
-                        should_process = is_sentence_end or buffer_bytes >= Config.SENTENCE_MAX_BYTES
+                    if is_sentence_end and len(session_state.audio_buffer) >= min_speech_bytes:
+                        should_process = True
+                        process_reason = "sentence_end"
+                    elif len(session_state.audio_buffer) >= max_buffer_bytes:
+                        should_process = True
+                        process_reason = "buffer_full"
 
-                    if should_process and buffer_bytes > 0:
-                        # 처리할 버퍼 추출
+                    if should_process:
                         process_bytes = bytes(session_state.audio_buffer)
                         session_state.audio_buffer.clear()
+                        if process_reason == "buffer_full":
+                            vad.reset()  # 버퍼 오버플로우 시에만 VAD 리셋
 
-                        # 처리 및 응답 생성
-                        for response in self._process_audio(session_state, process_bytes, is_sentence_end):
-                            yield response
+                        buffer_duration = len(process_bytes) / Config.BYTES_PER_SECOND
+                        print(f"[VAD] Processing ({process_reason}): {buffer_duration:.2f}s")
+
+                        # 오디오 처리 (에러 발생해도 스트림 유지)
+                        try:
+                            for response in self._process_audio(session_state, process_bytes, True):
+                                yield response
+                        except Exception as proc_err:
+                            print(f"[Audio Processing Error] {proc_err}")
+                            # 에러 발생해도 스트림 계속 유지
 
                 # 세션 종료
                 elif payload_type == 'session_end':
-                    if session_state and len(session_state.audio_buffer) > Config.BYTES_PER_SECOND // 2:
-                        # 남은 버퍼 처리
-                        process_bytes = bytes(session_state.audio_buffer)
-                        session_state.audio_buffer.clear()
+                    if session_state:
+                        # VAD 리셋
+                        session_state.vad.reset()
 
-                        for response in self._process_audio(session_state, process_bytes, True):
-                            yield response
+                        # 남은 버퍼 처리 (최소 0.3초 이상)
+                        min_speech_bytes = int(Config.BYTES_PER_SECOND * 0.3)
+                        if len(session_state.audio_buffer) >= min_speech_bytes:
+                            process_bytes = bytes(session_state.audio_buffer)
+                            session_state.audio_buffer.clear()
+
+                            try:
+                                for response in self._process_audio(session_state, process_bytes, True):
+                                    yield response
+                            except Exception as proc_err:
+                                print(f"[Session End Processing Error] {proc_err}")
+                        else:
+                            session_state.audio_buffer.clear()
 
                     # 세션 정리
                     if current_session_id:
@@ -703,12 +1110,67 @@ class ConversationServicer(conversation_pb2_grpc.ConversationServiceServicer):
 
         print(f"[STT] Result: \"{original_text}\" (confidence: {confidence:.2f})")
 
+        # Check if text is a filler word (skip translation/TTS but still send transcript)
+        is_filler = original_text.lower().strip() in Config.FILLER_WORDS or \
+                    original_text.strip() in Config.FILLER_WORDS
+        if is_filler:
+            print(f"[Filter] Skipping filler word: \"{original_text}\"")
+            # Still send transcript for chat log, but skip translation/TTS
+            transcript_id = str(uuid.uuid4())[:8]
+            yield conversation_pb2.ChatResponse(
+                session_id=state.session_id,
+                room_id=state.room_id,
+                transcript=conversation_pb2.TranscriptResult(
+                    id=transcript_id,
+                    speaker=conversation_pb2.SpeakerInfo(
+                        participant_id=state.speaker.participant_id,
+                        nickname=state.speaker.nickname,
+                        profile_img=state.speaker.profile_img,
+                        source_language=source_lang
+                    ),
+                    original_text=original_text,
+                    original_language=source_lang,
+                    translations=[],  # No translation for filler
+                    is_partial=False,
+                    is_final=True,
+                    timestamp_ms=int(time.time() * 1000),
+                    confidence=confidence
+                )
+            )
+            return
+
         # 고유 ID 생성
         transcript_id = str(uuid.uuid4())[:8]
 
         # 타겟 언어별 번역 수행
         target_languages = state.get_target_languages()
         translations = []
+
+        # Skip translation for very short texts (1 character)
+        if len(original_text.strip()) <= 1:
+            print(f"[Translation] Skipping very short text: \"{original_text}\"")
+            # Still send transcript without translation
+            yield conversation_pb2.ChatResponse(
+                session_id=state.session_id,
+                room_id=state.room_id,
+                transcript=conversation_pb2.TranscriptResult(
+                    id=transcript_id,
+                    speaker=conversation_pb2.SpeakerInfo(
+                        participant_id=state.speaker.participant_id,
+                        nickname=state.speaker.nickname,
+                        profile_img=state.speaker.profile_img,
+                        source_language=source_lang
+                    ),
+                    original_text=original_text,
+                    original_language=source_lang,
+                    translations=[],
+                    is_partial=False,
+                    is_final=True,
+                    timestamp_ms=int(time.time() * 1000),
+                    confidence=confidence
+                )
+            )
+            return
 
         for target_lang in target_languages:
             # 번역
@@ -751,6 +1213,17 @@ class ConversationServicer(conversation_pb2_grpc.ConversationServiceServicer):
         for translation in translations:
             target_lang = translation.target_language
             translated_text = translation.translated_text
+
+            # Skip TTS for very short translations (filler-like)
+            if len(translated_text.strip()) < Config.MIN_TTS_TEXT_LENGTH:
+                print(f"[TTS] Skipping short text: \"{translated_text}\" (len={len(translated_text)})")
+                continue
+
+            # Skip TTS if translated text is also a filler word
+            if translated_text.lower().strip() in Config.FILLER_WORDS or \
+               translated_text.strip() in Config.FILLER_WORDS:
+                print(f"[TTS] Skipping filler translation: \"{translated_text}\"")
+                continue
 
             print(f"[TTS] Synthesizing: \"{translated_text}\" (lang={target_lang})")
             audio_data, duration_ms = self.models.synthesize_speech(translated_text, target_lang)
@@ -819,16 +1292,17 @@ def serve():
     server.add_insecure_port(f'0.0.0.0:{Config.GRPC_PORT}')
     server.start()
 
-    nllb_name = Config.NLLB_MODEL.split('/')[-1]
+    qwen_name = Config.QWEN_MODEL.split('/')[-1]
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
-║  Python AI Server v7                                         ║
+║  Python AI Server v9                                         ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  gRPC Port:     {Config.GRPC_PORT}                                        ║
-║  Device:        {Config.WHISPER_DEVICE.upper()}                                       ║
+║  Region:        {Config.AWS_REGION}                              ║
+║  Device:        {Config.GPU_DEVICE.upper()}                                       ║
 ╠══════════════════════════════════════════════════════════════╣
-║  STT:           Whisper {Config.WHISPER_MODEL}                            ║
-║  Translation:   {nllb_name}                              ║
+║  STT:           Amazon Transcribe Streaming                  ║
+║  Translation:   {qwen_name}                                   ║
 ║  TTS:           Amazon Polly                                 ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  Buffering Strategies:                                       ║

@@ -12,10 +12,12 @@ interface Speaker {
 interface SubtitleEntry {
     id: string;
     speaker: Speaker;
-    originalText: string;
-    translatedText?: string;
+    text: string;
+    originalText?: string;
     timestamp: number;
-    isVisible: boolean;
+    displayText: string;
+    isTyping: boolean;
+    isExiting: boolean;
 }
 
 interface SubtitleOverlayProps {
@@ -26,210 +28,259 @@ interface SubtitleOverlayProps {
     showTranslation?: boolean;
 }
 
+// 여러 발화자 지원을 위한 전역 상태
+const subtitleStore = {
+    entries: new Map<string, SubtitleEntry>(),
+    listeners: new Set<() => void>(),
+
+    subscribe(listener: () => void) {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    },
+
+    notify() {
+        this.listeners.forEach(l => l());
+    },
+
+    addOrUpdate(speaker: Speaker, text: string, originalText?: string) {
+        const id = speaker.name || 'unknown';
+        const existing = this.entries.get(id);
+
+        if (existing && existing.text === text) {
+            return; // 같은 텍스트면 무시
+        }
+
+        const entry: SubtitleEntry = {
+            id,
+            speaker,
+            text,
+            originalText,
+            timestamp: Date.now(),
+            displayText: '',
+            isTyping: true,
+            isExiting: false,
+        };
+
+        this.entries.set(id, entry);
+        this.notify();
+    },
+
+    remove(id: string) {
+        const entry = this.entries.get(id);
+        if (entry) {
+            entry.isExiting = true;
+            this.notify();
+            setTimeout(() => {
+                this.entries.delete(id);
+                this.notify();
+            }, 400);
+        }
+    },
+
+    updateDisplayText(id: string, displayText: string, isTyping: boolean) {
+        const entry = this.entries.get(id);
+        if (entry) {
+            entry.displayText = displayText;
+            entry.isTyping = isTyping;
+            this.notify();
+        }
+    },
+
+    getAll(): SubtitleEntry[] {
+        return Array.from(this.entries.values())
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .slice(-3); // 최대 3개만 표시
+    },
+};
+
+// 개별 자막 아이템 컴포넌트
+function SubtitleItem({
+    entry,
+    showTranslation,
+    onComplete,
+}: {
+    entry: SubtitleEntry;
+    showTranslation: boolean;
+    onComplete: () => void;
+}) {
+    const [displayText, setDisplayText] = useState('');
+    const [isTyping, setIsTyping] = useState(true);
+    const typingRef = useRef<NodeJS.Timeout | null>(null);
+    const exitRef = useRef<NodeJS.Timeout | null>(null);
+
+    // 타이핑 애니메이션
+    useEffect(() => {
+        const text = entry.text;
+        let index = 0;
+
+        const type = () => {
+            if (index <= text.length) {
+                setDisplayText(text.slice(0, index));
+                index++;
+                typingRef.current = setTimeout(type, 25);
+            } else {
+                setIsTyping(false);
+            }
+        };
+
+        type();
+
+        // 5초 후 자동 제거
+        exitRef.current = setTimeout(onComplete, 5000);
+
+        return () => {
+            if (typingRef.current) clearTimeout(typingRef.current);
+            if (exitRef.current) clearTimeout(exitRef.current);
+        };
+    }, [entry.text, onComplete]);
+
+    const getInitials = (name: string) => name.charAt(0).toUpperCase();
+
+    return (
+        <div
+            className={`
+                flex items-center gap-3 px-4 py-2.5
+                bg-black/80 backdrop-blur-xl
+                rounded-full
+                shadow-lg shadow-black/20
+                border border-white/10
+                transition-all duration-400 ease-out
+                ${entry.isExiting
+                    ? 'opacity-0 translate-y-2 scale-95'
+                    : 'opacity-100 translate-y-0 scale-100 animate-subtitle-in'
+                }
+            `}
+        >
+            {/* 프로필 이미지 */}
+            <div className="relative flex-shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center ring-2 ring-white/20">
+                    {entry.speaker.profileImg ? (
+                        <Image
+                            src={entry.speaker.profileImg}
+                            alt={entry.speaker.name}
+                            width={32}
+                            height={32}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <span className="text-white text-sm font-semibold">
+                            {getInitials(entry.speaker.name)}
+                        </span>
+                    )}
+                </div>
+                {/* 말하는 중 인디케이터 */}
+                {isTyping && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border border-black/80 animate-pulse" />
+                )}
+            </div>
+
+            {/* 이름 + 텍스트 */}
+            <div className="flex items-center gap-2 min-w-0">
+                <span className="text-white/60 text-sm font-medium flex-shrink-0">
+                    {entry.speaker.name}
+                </span>
+                <span className="text-white/30">·</span>
+                <div className="flex-1 min-w-0">
+                    {showTranslation && entry.originalText && entry.originalText !== entry.text ? (
+                        <div className="flex items-center gap-2">
+                            <span className="text-white/50 text-xs truncate max-w-[120px]">
+                                {entry.originalText}
+                            </span>
+                            <span className="text-white/40 text-xs">→</span>
+                            <span className="text-white text-base font-semibold">
+                                {displayText}
+                                {isTyping && <span className="animate-cursor-blink">|</span>}
+                            </span>
+                        </div>
+                    ) : (
+                        <span className="text-white text-base font-semibold">
+                            {displayText}
+                            {isTyping && <span className="animate-cursor-blink ml-0.5">|</span>}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function SubtitleOverlay({
     text,
     originalText,
     speaker,
     showTranslation = false,
 }: SubtitleOverlayProps) {
-    const [displayText, setDisplayText] = useState<string>('');
-    const [isVisible, setIsVisible] = useState(false);
-    const [isTyping, setIsTyping] = useState(false);
-    const [isExiting, setIsExiting] = useState(false);
-    const exitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const previousTextRef = useRef<string | null>(null);
+    const [entries, setEntries] = useState<SubtitleEntry[]>([]);
+    const processedRef = useRef<Map<string, string>>(new Map());
 
+    // 스토어 구독
     useEffect(() => {
-        if (exitTimeoutRef.current) {
-            clearTimeout(exitTimeoutRef.current);
-            exitTimeoutRef.current = null;
-        }
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = null;
-        }
+        const unsubscribe = subtitleStore.subscribe(() => {
+            setEntries(subtitleStore.getAll());
+        });
+        return unsubscribe;
+    }, []);
 
-        if (text && text !== previousTextRef.current) {
-            setIsExiting(false);
-            setIsVisible(true);
-            setIsTyping(true);
+    // 새 자막 추가
+    useEffect(() => {
+        if (text && speaker) {
+            const key = `${speaker.name}-${text}`;
+            if (!processedRef.current.has(key)) {
+                processedRef.current.set(key, text);
+                subtitleStore.addOrUpdate(speaker, text, originalText || undefined);
 
-            // 타이핑 애니메이션
-            let currentIndex = 0;
-            const typeNextChar = () => {
-                if (currentIndex <= text.length) {
-                    setDisplayText(text.slice(0, currentIndex));
-                    currentIndex++;
-                    typingTimeoutRef.current = setTimeout(typeNextChar, 20);
-                } else {
-                    setIsTyping(false);
-                }
-            };
-            typeNextChar();
-
-            previousTextRef.current = text;
-
-            // 5초 후 페이드 아웃
-            exitTimeoutRef.current = setTimeout(() => {
-                setIsExiting(true);
+                // 10초 후 캐시 정리
                 setTimeout(() => {
-                    setIsVisible(false);
-                    setDisplayText('');
-                    previousTextRef.current = null;
-                }, 500);
-            }, 5000);
-
-        } else if (!text && previousTextRef.current) {
-            setIsExiting(true);
-            setTimeout(() => {
-                setIsVisible(false);
-                setDisplayText('');
-                previousTextRef.current = null;
-            }, 500);
+                    processedRef.current.delete(key);
+                }, 10000);
+            }
         }
+    }, [text, originalText, speaker]);
 
-        return () => {
-            if (exitTimeoutRef.current) clearTimeout(exitTimeoutRef.current);
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        };
-    }, [text]);
+    const handleComplete = useCallback((id: string) => {
+        subtitleStore.remove(id);
+    }, []);
 
-    if (!isVisible && !text) {
+    if (entries.length === 0) {
         return null;
     }
 
-    const getInitials = (name: string) => {
-        return name.charAt(0).toUpperCase();
-    };
-
     return (
-        <div className="fixed bottom-28 left-1/2 transform -translate-x-1/2 z-50 pointer-events-none px-4 max-w-4xl w-full">
-            {/* Netflix/OTT 스타일 자막 컨테이너 */}
-            <div
-                className={`
-                    relative
-                    flex items-start gap-4
-                    px-6 py-4
-                    rounded-2xl
-                    transition-all duration-500 ease-out
-                    ${isExiting
-                        ? 'opacity-0 translate-y-4 scale-95 blur-sm'
-                        : 'opacity-100 translate-y-0 scale-100 blur-0'
-                    }
-                    ${!previousTextRef.current && text ? 'animate-subtitle-enter' : ''}
-                `}
-                style={{
-                    // Glassmorphism 효과
-                    background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.75) 100%)',
-                    backdropFilter: 'blur(20px) saturate(180%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-            >
-                {/* 발화자 프로필 */}
-                <div className="flex-shrink-0 relative">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center ring-2 ring-white/20 shadow-lg">
-                        {speaker?.profileImg ? (
-                            <Image
-                                src={speaker.profileImg}
-                                alt={speaker.name || 'Speaker'}
-                                width={48}
-                                height={48}
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            <span className="text-white font-bold text-lg drop-shadow-lg">
-                                {speaker?.name ? getInitials(speaker.name) : '?'}
-                            </span>
-                        )}
-                    </div>
-                    {/* 말하는 중 인디케이터 */}
-                    {isTyping && (
-                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-black/80 animate-pulse shadow-lg shadow-green-400/50" />
-                    )}
-                </div>
-
-                {/* 텍스트 영역 */}
-                <div className="flex-1 min-w-0">
-                    {/* 발화자 이름 */}
-                    {speaker?.name && (
-                        <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-white/90 text-sm font-semibold tracking-wide">
-                                {speaker.name}
-                            </span>
-                            {speaker.isLocal && (
-                                <span className="text-xs text-white/40 bg-white/10 px-2 py-0.5 rounded-full">
-                                    나
-                                </span>
-                            )}
-                        </div>
-                    )}
-
-                    {/* 자막 텍스트 */}
-                    {showTranslation && originalText && originalText !== text ? (
-                        <div className="space-y-1.5">
-                            {/* 원본 텍스트 (작게, 흐리게) */}
-                            <p className="text-white/50 text-sm leading-relaxed font-medium">
-                                {originalText}
-                            </p>
-                            {/* 번역 텍스트 (크게, 강조) */}
-                            <p className="text-white text-lg font-semibold leading-relaxed tracking-wide">
-                                {displayText}
-                                {isTyping && (
-                                    <span className="inline-block w-0.5 h-5 bg-white/80 ml-1 animate-cursor-blink align-middle" />
-                                )}
-                            </p>
-                        </div>
-                    ) : (
-                        /* STT만 표시 */
-                        <p className="text-white text-lg font-semibold leading-relaxed tracking-wide">
-                            {displayText}
-                            {isTyping && (
-                                <span className="inline-block w-0.5 h-5 bg-white/80 ml-1 animate-cursor-blink align-middle" />
-                            )}
-                        </p>
-                    )}
-                </div>
-
-                {/* 우측 언어 인디케이터 */}
-                {showTranslation && (
-                    <div className="flex-shrink-0 flex flex-col items-center gap-1">
-                        <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                            </svg>
-                        </div>
-                    </div>
-                )}
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+            <div className="flex flex-col items-center gap-2">
+                {entries.map((entry) => (
+                    <SubtitleItem
+                        key={`${entry.id}-${entry.timestamp}`}
+                        entry={entry}
+                        showTranslation={showTranslation}
+                        onComplete={() => handleComplete(entry.id)}
+                    />
+                ))}
             </div>
 
-            <style jsx>{`
-                @keyframes subtitle-enter {
+            <style jsx global>{`
+                @keyframes subtitle-in {
                     0% {
                         opacity: 0;
-                        transform: translateY(20px) scale(0.95);
-                        filter: blur(10px);
+                        transform: translateY(10px) scale(0.9);
                     }
                     100% {
                         opacity: 1;
                         transform: translateY(0) scale(1);
-                        filter: blur(0);
                     }
                 }
 
                 @keyframes cursor-blink {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0; }
+                    0%, 50% { opacity: 1; }
+                    51%, 100% { opacity: 0; }
                 }
 
-                .animate-subtitle-enter {
-                    animation: subtitle-enter 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+                .animate-subtitle-in {
+                    animation: subtitle-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
                 }
 
                 .animate-cursor-blink {
-                    animation: cursor-blink 0.8s ease-in-out infinite;
+                    animation: cursor-blink 0.6s ease-in-out infinite;
                 }
             `}</style>
         </div>

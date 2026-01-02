@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
+import { usePresence } from "../../contexts/presence-context";
 import { apiClient, Workspace } from "../../lib/api";
 import Sidebar from "./components/Sidebar";
 import MembersSection from "./components/MembersSection";
@@ -12,13 +13,15 @@ import CalendarSection from "./components/CalendarSection";
 import StorageSection from "./components/StorageSection";
 import NotificationDropdown from "../../components/NotificationDropdown";
 import EditProfileModal from "../../../components/EditProfileModal";
+import StatusIndicator from "../../../components/StatusIndicator";
+import GlobalUserProfileMenu from "../../../components/GlobalUserProfileMenu";
 import { useVoiceParticipantsWebSocket } from "../../hooks/useVoiceParticipantsWebSocket";
 import { usePermission } from "../../hooks/usePermission";
 
 export default function WorkspaceDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const { user, isAuthenticated, isLoading, refreshUser } = useAuth(); // Add refreshUser
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
   const [activeSection, setActiveSection] = useState("members");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentChatRoomTitle, setCurrentChatRoomTitle] = useState("");
@@ -35,6 +38,7 @@ export default function WorkspaceDetailPage() {
     participants: CallParticipant[];
   } | null>(null);
 
+  const { presenceMap } = usePresence();
   // 워크스페이스 데이터
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = useState(true);
@@ -64,7 +68,7 @@ export default function WorkspaceDetailPage() {
 
     // WebSocket으로 입장 알림
     if (user) {
-      const roomName = `workspace-${workspaceId}-${channelId}`;
+      const roomName = `workspace - ${workspaceId} -${channelId} `;
       sendJoin(roomName, user.nickname, user.nickname, user.profileImg);
     }
   }, [user, workspaceId, sendJoin]);
@@ -72,7 +76,7 @@ export default function WorkspaceDetailPage() {
   // 통화 퇴장 핸들러
   const handleLeaveCall = useCallback(() => {
     if (activeCall && user) {
-      const roomName = `workspace-${workspaceId}-${activeCall.channelId}`;
+      const roomName = `workspace - ${workspaceId} -${activeCall.channelId} `;
       sendLeave(roomName, user.nickname);
     }
     setActiveCall(null);
@@ -191,9 +195,6 @@ export default function WorkspaceDetailPage() {
     // 채팅방 처리
     if (activeSection.startsWith("chat-")) {
       const roomId = parseInt(activeSection.replace("chat-", ""), 10);
-
-      // 채팅방은 멤버 권한 체크가 다를 수 있음 (일단 기본적으로 접근 허용하되, 메시지 전송 권한은 체크)
-      // 채팅방은 멤버 권한 체크가 다를 수 있음 (일단 기본적으로 접근 허용하되, 메시지 전송 권한은 체크)
       const canSendMessages = usePermission(workspace, "SEND_MESSAGES");
 
       return (
@@ -207,19 +208,15 @@ export default function WorkspaceDetailPage() {
       );
     }
 
-    // DM 처리 (Sidebar 하이라이트 분리를 위해 prefix 변경: dm-)
+    // DM 처리
     if (activeSection.startsWith("dm-")) {
       const roomId = parseInt(activeSection.replace("dm-", ""), 10);
-      // DM은 항상 메시지 전송 가능 (블락 기능 등이 없다면)
-      // 또는 워크스페이스 권한을 따름
       const canSendMessages = usePermission(workspace, "SEND_MESSAGES");
 
       return (
         <ChatSection
           workspaceId={workspace.id}
           roomId={roomId}
-          // DM은 제목이 상대방 이름이어야 함. ChatSection 내부에서 처리하거나 여기서 넘겨줘야 함
-          // 현재는 ChatSection이 스스로 정보를 가져오려 시도함.
           onRoomTitleChange={setCurrentChatRoomTitle}
           onBack={() => setActiveSection("members")}
           canSendMessages={canSendMessages}
@@ -251,8 +248,6 @@ export default function WorkspaceDetailPage() {
         return <MembersSection workspace={workspace} onMembersUpdate={fetchWorkspace} onSectionChange={setActiveSection} />;
     }
   };
-
-
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
@@ -300,50 +295,39 @@ export default function WorkspaceDetailPage() {
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="flex items-center gap-2 hover:opacity-70 transition-opacity"
               >
-                {user.profileImg ? (
-                  <img
-                    src={user.profileImg}
-                    alt={user.nickname}
-                    className="w-8 h-8 rounded-full object-cover hover:ring-2 hover:ring-black/10 transition-all"
+                <div className="relative">
+                  {user.profileImg ? (
+                    <img
+                      src={user.profileImg}
+                      alt={user.nickname}
+                      className="w-8 h-8 rounded-full object-cover hover:ring-2 hover:ring-black/10 transition-all"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center hover:ring-2 hover:ring-black/20 transition-all">
+                      <span className="text-xs font-medium text-white">
+                        {user.nickname.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  {/* Status Dot */}
+                  <StatusIndicator
+                    status={presenceMap[user.id]?.status || user.default_status || "online"}
+                    size="sm"
+                    className="absolute bottom-0 right-0 border-white"
                   />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center hover:ring-2 hover:ring-black/20 transition-all">
-                    <span className="text-xs font-medium text-white">
-                      {user.nickname.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
+                </div>
               </button>
 
-              {/* Profile Dropdown */}
+              {/* Global Profile Menu */}
               {showProfileMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowProfileMenu(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-64 bg-white border border-black/10 shadow-lg z-20 rounded-md">
-                    <div className="p-4 border-b border-black/5">
-                      <p className="font-medium text-black">{user.nickname}</p>
-                      <p className="text-sm text-black/50 mt-0.5">{user.email}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setIsEditProfileModalOpen(true);
-                      }}
-                      className="w-full px-4 py-3 text-left text-sm text-black/70 hover:bg-black/5 transition-colors"
-                    >
-                      프로필 수정
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full px-4 py-3 text-left text-sm text-black/70 hover:bg-black/5 transition-colors rounded-b-md"
-                    >
-                      로그아웃
-                    </button>
-                  </div>
-                </>
+                <GlobalUserProfileMenu
+                  onClose={() => setShowProfileMenu(false)}
+                  onEditProfile={() => {
+                    setShowProfileMenu(false);
+                    setIsEditProfileModalOpen(true);
+                  }}
+                  onLogout={handleLogout}
+                />
               )}
             </div>
           </div>
@@ -356,7 +340,7 @@ export default function WorkspaceDetailPage() {
       </div>
 
       {/* Edit Profile Modal */}
-      {isEditProfileModalOpen && (
+      {isEditProfileModalOpen && user && (
         <EditProfileModal
           user={user}
           onClose={() => setIsEditProfileModalOpen(false)}
