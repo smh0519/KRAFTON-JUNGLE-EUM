@@ -171,7 +171,7 @@ function VideoCallContent({
                 isLocal: false,
             });
             setCurrentOriginal(data.original);
-            setCurrentTranscript(data.translated);
+            setCurrentTranscript(data.translated ?? null);
 
             // 3초 후 자막 클리어 (더 빠르게)
             if (transcriptTimeoutRef.current) {
