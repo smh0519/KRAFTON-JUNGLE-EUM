@@ -719,43 +719,41 @@ class ConversationServicer(conversation_pb2_grpc.ConversationServiceServicer):
                         )
                     )
 
-                # 오디오 청크 처리
+                # 오디오 청크 처리 (VAD 없이 - 프론트엔드에서 이미 처리됨)
                 elif payload_type == 'audio_chunk' and session_state:
                     audio_chunk = request.audio_chunk
                     session_state.audio_buffer.extend(audio_chunk)
 
-                    # VAD 처리 (100ms 단위)
-                    chunk_size = Config.BYTES_PER_SECOND // 10  # 100ms
-                    is_sentence_end = False
-
-                    while len(session_state.audio_buffer) >= chunk_size:
-                        vad_chunk = bytes(session_state.audio_buffer[:chunk_size])
-                        del session_state.audio_buffer[:chunk_size]
-
-                        is_speech, sentence_end = session_state.vad.process_chunk(vad_chunk)
-
-                        if sentence_end:
-                            is_sentence_end = True
-                            break
-
-                    # 버퍼링 전략에 따른 처리
-                    should_process = False
+                    # 버퍼 크기 체크
                     buffer_bytes = len(session_state.audio_buffer)
+
+                    # 디버그: 수신된 오디오 레벨 확인
+                    if buffer_bytes >= 3200:  # 100ms 이상일 때만
+                        chunk_array = np.frombuffer(bytes(session_state.audio_buffer[-3200:]), dtype=np.int16)
+                        chunk_rms = np.sqrt(np.mean(chunk_array.astype(np.float64) ** 2)) / 32768.0
+                        if chunk_rms > 0.001:  # 침묵이 아닐 때만 로깅
+                            print(f"[Audio RX] Buffer: {buffer_bytes} bytes, Recent RMS: {chunk_rms:.6f}")
+
+                    # 버퍼링 전략에 따른 처리 (VAD 없이 시간 기반)
+                    should_process = False
+                    is_final = False
 
                     if session_state.primary_strategy == BufferingStrategy.CHUNK_BASED:
                         # 1.5초 단위로 처리
                         should_process = buffer_bytes >= Config.CHUNK_BYTES
+                        is_final = False
                     else:
-                        # 문장 완성 또는 최대 버퍼 도달 시 처리
-                        should_process = is_sentence_end or buffer_bytes >= Config.SENTENCE_MAX_BYTES
+                        # SENTENCE_BASED: 최대 버퍼에 도달하면 처리
+                        should_process = buffer_bytes >= Config.SENTENCE_MAX_BYTES
+                        is_final = True
 
                     if should_process and buffer_bytes > 0:
-                        # 처리할 버퍼 추출
+                        # 전체 버퍼 처리 (손실 없음)
                         process_bytes = bytes(session_state.audio_buffer)
                         session_state.audio_buffer.clear()
 
                         # 처리 및 응답 생성
-                        for response in self._process_audio(session_state, process_bytes, is_sentence_end):
+                        for response in self._process_audio(session_state, process_bytes, is_final):
                             yield response
 
                 # 세션 종료
