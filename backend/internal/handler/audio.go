@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/gofiber/contrib/websocket"
+	"gorm.io/gorm"
 
 	"realtime-backend/internal/ai"
+	"realtime-backend/internal/auth"
 	"realtime-backend/internal/config"
 	"realtime-backend/internal/model"
 	"realtime-backend/internal/session"
@@ -18,12 +20,13 @@ import (
 // AudioHandler 오디오 WebSocket 핸들러
 type AudioHandler struct {
 	cfg      *config.Config
+	db       *gorm.DB
 	aiClient *ai.GrpcClient
 }
 
 // NewAudioHandler AudioHandler 생성자
-func NewAudioHandler(cfg *config.Config) *AudioHandler {
-	handler := &AudioHandler{cfg: cfg}
+func NewAudioHandler(cfg *config.Config, db *gorm.DB) *AudioHandler {
+	handler := &AudioHandler{cfg: cfg, db: db}
 
 	// AI 서버 연결 (활성화된 경우)
 	if cfg.AI.Enabled {
@@ -77,6 +80,30 @@ func (h *AudioHandler) HandleWebSocket(c *websocket.Conn) {
 	if participantId, ok := c.Locals("participantId").(string); ok && participantId != "" {
 		sess.SetParticipantID(participantId)
 		log.Printf("👤 [%s] Participant ID: %s", sess.ID, participantId)
+	}
+
+	// 권한 확인 (CONNECT_VOICE)
+	workspaceIDStr := c.Params("workspaceId")
+	// workspaceID가 없으면 글로벌 WS일 수도 있지만, 여기서는 워크스페이스 컨텍스트 가정
+	if workspaceIDStr != "" {
+		claims, ok := c.Locals("claims").(*auth.Claims)
+		if ok {
+			// int64 파싱
+			var workspaceID int64
+			fmt.Sscanf(workspaceIDStr, "%d", &workspaceID)
+
+			hasPermission, err := auth.CheckPermission(h.db, workspaceID, claims.UserID, "CONNECT_MEDIA")
+			if err != nil {
+				log.Printf("❌ [%s] Permission check failed: %v", sess.ID, err)
+				h.sendErrorResponse(c, sess.ID, "PERMISSION_ERROR", "Internal server error")
+				return
+			}
+			if !hasPermission {
+				log.Printf("❌ [%s] Permission denied: CONNECT_MEDIA", sess.ID)
+				h.sendErrorResponse(c, sess.ID, "PERMISSION_DENIED", "You do not have permission to connect to media")
+				return
+			}
+		}
 	}
 
 	log.Printf("🔗 [%s] New WebSocket connection established", sess.ID)

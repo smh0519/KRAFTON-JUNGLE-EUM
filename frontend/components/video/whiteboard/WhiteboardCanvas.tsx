@@ -11,12 +11,13 @@ import { ZOOM_SETTINGS, GRID_SETTINGS, TOOL_SETTINGS } from './constants';
 import { hexToNumber, generatePenCursor, generateEraserCursor } from './utils';
 import { useWhiteboardCursors } from './hooks/useWhiteboardCursors';
 import { ZoomControls } from './components/ZoomControls';
-import { RemoteCursors } from './components/RemoteCursors';
+import { RemoteCursors, CursorVisual } from './components/RemoteCursors'; // Import CursorVisual
 import { WhiteboardToolbar } from './components/WhiteboardToolbar';
 
 export default function WhiteboardCanvas() {
     // Refs
     const containerRef = useRef<HTMLDivElement>(null);
+    const localCursorRef = useRef<HTMLDivElement>(null); // Add ref
     const appRef = useRef<PIXI.Application | null>(null);
     const drawingContainerRef = useRef<PIXI.Container | null>(null);
     const currentGraphicsRef = useRef<{
@@ -54,13 +55,14 @@ export default function WhiteboardCanvas() {
     const [isMiddlePanning, setIsMiddlePanning] = useState(false);
     const [isDrawing, setIsDrawing] = useState(false);
     const [triggerLoad, setTriggerLoad] = useState(0);
+    const [isReady, setIsReady] = useState(false);
 
     // LiveKit
     const room = useRoomContext();
     const participants = useParticipants();
 
     // Cursor Hook - pass tool state for cursor display
-    const { remoteCursors, localCursor, broadcastCursor, handleCursorEvent } = useWhiteboardCursors({
+    const { remoteCursors, broadcastCursor, handleCursorEvent, cursorColor } = useWhiteboardCursors({ // Destructure cursorColor, remove localCursor
         room,
         participantIdentities: participants.filter(p => !p.isLocal).map(p => p.identity),
         toolState: {
@@ -178,9 +180,20 @@ export default function WhiteboardCanvas() {
         const onPointerMove = (e: PointerEvent) => {
             if (!canvasElement) return;
 
-            // Broadcast cursor position
+            // Broadcast cursor position (networking)
             const cursorPoint = getLocalPoint(e.clientX, e.clientY);
             broadcastCursor(cursorPoint.x, cursorPoint.y);
+
+            // Update local cursor visual immediately (performance)
+            if (localCursorRef.current) {
+                // Ensure the cursor follows the mouse pointer relative to the viewport/container
+                // Assuming containerRef has relative positioning and matches window/parent
+                // But e.clientX is viewport relative. We need position relative to containerRef.
+                const rect = containerRef.current!.getBoundingClientRect();
+                const localX = e.clientX - rect.left;
+                const localY = e.clientY - rect.top;
+                localCursorRef.current.style.transform = `translate(${localX}px, ${localY}px)`;
+            }
 
             if (isPanning && lastPanPoint) {
                 const dx = e.clientX - lastPanPoint.x;
@@ -237,9 +250,8 @@ export default function WhiteboardCanvas() {
             };
 
             if (room) {
-                const str = JSON.stringify(event);
-                const encoder = new TextEncoder();
-                room.localParticipant.publishData(encoder.encode(str), { reliable: true });
+                // Batching: Push to buffer instead of sending immediately
+                pointBufferRef.current.push(event);
             }
 
             currentStroke.push(event);
@@ -263,7 +275,12 @@ export default function WhiteboardCanvas() {
 
             if (isDrawing && prevRawPoint && prevRenderedPoint) {
                 const finalRaw = getLocalPoint(e.clientX, e.clientY);
-                const dest = finalRaw;
+                let dest = finalRaw;
+
+                // Handle single click (dot) - if no movement occurred, offset slightly to force render
+                if (currentStroke.length === 0 && dest.x === prevRenderedPoint.x && dest.y === prevRenderedPoint.y) {
+                    dest = { x: dest.x + 0.1, y: dest.y };
+                }
 
                 const color = toolRef.current === 'eraser' ? 0xffffff : penColorRef.current;
                 const baseSize = toolRef.current === 'eraser' ? eraserSizeRef.current : penSizeRef.current;
@@ -282,9 +299,8 @@ export default function WhiteboardCanvas() {
                 };
 
                 if (room) {
-                    const str = JSON.stringify(event);
-                    const encoder = new TextEncoder();
-                    room.localParticipant.publishData(encoder.encode(str), { reliable: true });
+                    // Batching: Push to buffer
+                    pointBufferRef.current.push(event);
                 }
                 currentStroke.push(event);
             }
@@ -345,6 +361,8 @@ export default function WhiteboardCanvas() {
                 canvasElement.addEventListener('pointermove', onPointerMove);
                 canvasElement.addEventListener('pointerup', onPointerUp);
                 canvasElement.addEventListener('wheel', onWheel, { passive: false });
+
+                setIsReady(true);
             }
         };
 
@@ -371,6 +389,31 @@ export default function WhiteboardCanvas() {
         };
     }, [room, broadcastCursor, drawLine]);
 
+    // Batching logic: Flush buffer every 50ms
+    const pointBufferRef = useRef<DrawEvent[]>([]);
+
+    useEffect(() => {
+        if (!room) return;
+
+        const interval = setInterval(() => {
+            if (pointBufferRef.current.length > 0) {
+                const batchEvent = {
+                    type: 'draw_batch',
+                    points: pointBufferRef.current,
+                };
+
+                const str = JSON.stringify(batchEvent);
+                const encoder = new TextEncoder();
+                // Use unreliable for frequent updates if acceptable, but reliable is safer for drawing order
+                room.localParticipant.publishData(encoder.encode(str), { reliable: true });
+
+                pointBufferRef.current = [];
+            }
+        }, 50); // 20fps cap
+
+        return () => clearInterval(interval);
+    }, [room]);
+
     // Data event handler
     useEffect(() => {
         if (!room) return;
@@ -381,13 +424,20 @@ export default function WhiteboardCanvas() {
                 const event = JSON.parse(str);
 
                 if (event.type === 'draw') {
+                    // Legacy support or fallback
                     drawLine(event.x, event.y, event.prevX, event.prevY, event.color, event.width);
+                } else if (event.type === 'draw_batch') {
+                    // Handle batch event
+                    const points = event.points as DrawEvent[];
+                    points.forEach(p => {
+                        drawLine(p.x, p.y, p.prevX, p.prevY, p.color, p.width);
+                    });
                 } else if (event.type === 'clear') {
                     drawingContainerRef.current?.removeChildren();
                     currentGraphicsRef.current = null;
                     setCanUndo(false);
                     setCanRedo(false);
-                    setTriggerLoad(prev => prev + 1);
+                    // setTriggerLoad(prev => prev + 1); // Removed to prevent race condition showing old data
                 } else if (event.type === 'refetch') {
                     setTriggerLoad(prev => prev + 1);
                 } else if (event.type === 'cursor') {
@@ -406,11 +456,12 @@ export default function WhiteboardCanvas() {
 
     // Load history
     useEffect(() => {
-        if (!room?.name) return;
+        if (!room?.name || !isReady) return;
 
         const loadHistory = async () => {
             try {
                 const data = await apiClient.getWhiteboardHistory(room.name);
+                console.log('[Whiteboard] Loaded history data:', data);
 
                 let history = [];
                 if (Array.isArray(data)) {
@@ -420,6 +471,7 @@ export default function WhiteboardCanvas() {
                     setCanUndo(data.canUndo ?? false);
                     setCanRedo(data.canRedo ?? false);
                 }
+                console.log('[Whiteboard] Parsed history:', history);
 
                 if (drawingContainerRef.current) {
                     drawingContainerRef.current.removeChildren();
@@ -438,7 +490,7 @@ export default function WhiteboardCanvas() {
         };
 
         loadHistory();
-    }, [room?.name, triggerLoad, drawLine]);
+    }, [room?.name, triggerLoad, drawLine, isReady]);
 
     // Actions
     const setTool = useCallback((t: WhiteboardTool) => {
@@ -618,11 +670,32 @@ export default function WhiteboardCanvas() {
         }
     }, [activeTool, isInteracting, isMiddlePanning, penSize, penColor, eraserSize]);
 
+    const handleGlobalPointerMove = (e: React.PointerEvent) => {
+        // Broadcast cursor position (networking)
+        // Note: we might want to throttle this or check bounds if needed, but for now simple
+        // relaying coordinates relative to the container is fine.
+        if (localCursorRef.current && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+
+            // Visual update
+            localCursorRef.current.style.transform = `translate(${localX}px, ${localY}px)`;
+
+            // Network broadcast (if needed here, or keep it in canvas interaction)
+            // We can duplicate the network broadcast logic here to show cursor even over UI
+            // But be careful about coordinate systems if 'containerRef' is the canvas container
+            // We should ensure getLocalPoint logic is consistent.
+            // For now, let's just update the VISUAL first as requested.
+        }
+    };
+
     return (
         <div
             className="relative w-full h-full bg-[#f9f9f9] touch-none overflow-hidden select-none outline-none"
             style={{ cursor: getCursor() }}
             onContextMenu={(e) => e.preventDefault()}
+            onPointerMove={handleGlobalPointerMove} // Track mouse globally in this container
         >
             {/* Grid Background */}
             <div
@@ -667,10 +740,31 @@ export default function WhiteboardCanvas() {
             {/* Cursors */}
             <RemoteCursors
                 cursors={remoteCursors}
-                localCursor={localCursor}
+                localCursor={null} // Local cursor is handled separately for performance
                 scale={scale}
                 panOffset={panOffset}
             />
+
+            {/* Local Cursor (Unmanaged Ref for performance) */}
+            <div
+                ref={localCursorRef}
+                className="absolute pointer-events-none z-[60] transition-none will-change-transform top-0 left-0" // top-0 left-0 required for translate
+                style={{
+                    display: 'block', // Always show
+                }}
+            >
+                {/* Only render if we have a participant identity */}
+                {room?.localParticipant && (
+                    <CursorVisual
+                        color={cursorColor}
+                        name={room.localParticipant.name || room.localParticipant.identity}
+                        tool={activeTool}
+                        penColor={activeTool === 'pen' ? penColor : undefined}
+                        isDrawing={isDrawing}
+                        isLocal={true}
+                    />
+                )}
+            </div>
         </div>
     );
 }

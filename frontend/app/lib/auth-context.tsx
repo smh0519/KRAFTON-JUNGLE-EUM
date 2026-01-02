@@ -17,6 +17,9 @@ interface User {
   nickname: string;
   profileImg?: string;
   provider?: string;
+  default_status?: string;
+  custom_status_text?: string;
+  custom_status_emoji?: string;
 }
 
 interface AuthContextType {
@@ -65,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nickname: userData.nickname,
         profileImg: userData.profile_img,
         provider: userData.provider,
+        default_status: userData.default_status,
+        custom_status_text: userData.custom_status_text,
+        custom_status_emoji: userData.custom_status_emoji,
       });
     } catch {
       setUser(null);
@@ -101,6 +107,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nickname: response.user.nickname,
         profileImg: response.user.profile_img,
         provider: response.user.provider,
+        default_status: response.user.default_status,
+        custom_status_text: response.user.custom_status_text,
+        custom_status_emoji: response.user.custom_status_emoji,
       });
     } catch (error) {
       console.error("Google login failed:", error);
@@ -115,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       await apiClient.logout();
+      await apiClient.checkAuth(); // 쿠키 삭제 등을 확실히 하기 위해 (선택적)
       setUser(null);
     } finally {
       setIsLoading(false);
