@@ -58,9 +58,8 @@ function WhiteboardToolbarComponent({
 
     return (
         <div
-            className={`absolute bottom-0 left-1/2 -translate-x-1/2 flex flex-col items-center z-50 transition-all duration-500 ease-in-out ${
-                isToolbarOpen ? 'translate-y-[-20px]' : 'translate-y-[calc(100%-32px)]'
-            }`}
+            className={`absolute bottom-0 left-1/2 -translate-x-1/2 flex flex-col items-center z-50 transition-all duration-500 ease-in-out cursor-none [&_*]:cursor-none ${isToolbarOpen ? 'translate-y-[-20px]' : 'translate-y-[calc(100%-32px)]'
+                }`}
         >
             {/* Toggle Button */}
             <button
@@ -69,9 +68,8 @@ function WhiteboardToolbarComponent({
                 title={isToolbarOpen ? 'Close Toolbar' : 'Open Toolbar'}
             >
                 <svg
-                    className={`w-6 h-6 transform transition-transform duration-500 ${
-                        isToolbarOpen ? 'rotate-180' : ''
-                    } group-hover:scale-110`}
+                    className={`w-6 h-6 transform transition-transform duration-500 ${isToolbarOpen ? 'rotate-180' : ''
+                        } group-hover:scale-110`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -142,11 +140,10 @@ function WhiteboardToolbarComponent({
                                         <button
                                             key={c}
                                             onClick={() => onPenColorChange(c)}
-                                            className={`w-7 h-7 rounded-full border transition-transform hover:scale-110 ${
-                                                penColor === c
+                                            className={`w-7 h-7 rounded-full border transition-transform hover:scale-110 ${penColor === c
                                                     ? 'ring-2 ring-offset-2 ring-stone-900 border-transparent'
                                                     : 'border-stone-200'
-                                            }`}
+                                                }`}
                                             style={{ backgroundColor: c }}
                                             title={c}
                                         />
@@ -200,11 +197,10 @@ function WhiteboardToolbarComponent({
                     <button
                         onClick={onUndo}
                         disabled={!canUndo}
-                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
-                            !canUndo
+                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!canUndo
                                 ? 'opacity-[0.1] cursor-not-allowed'
                                 : 'hover:bg-stone-50 text-stone-600 hover:text-stone-900 hover:scale-110'
-                        }`}
+                            }`}
                         title="Undo (Ctrl+Z)"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -221,11 +217,10 @@ function WhiteboardToolbarComponent({
                     <button
                         onClick={onRedo}
                         disabled={!canRedo}
-                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
-                            !canRedo
+                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${!canRedo
                                 ? 'opacity-[0.1] cursor-not-allowed'
                                 : 'hover:bg-stone-50 text-stone-600 hover:text-stone-900 hover:scale-110'
-                        }`}
+                            }`}
                         title="Redo (Ctrl+Y)"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -243,11 +238,10 @@ function WhiteboardToolbarComponent({
                     {/* Hand */}
                     <button
                         onClick={() => handleToolClick('hand')}
-                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
-                            activeTool === 'hand'
+                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${activeTool === 'hand'
                                 ? 'bg-black text-white shadow-xl scale-110'
                                 : 'hover:bg-stone-50 text-stone-500 hover:text-stone-900 hover:scale-110'
-                        }`}
+                            }`}
                         title="Pan"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -263,11 +257,10 @@ function WhiteboardToolbarComponent({
                     {/* Pen */}
                     <button
                         onClick={() => handleToolClick('pen')}
-                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
-                            activeTool === 'pen'
+                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${activeTool === 'pen'
                                 ? 'bg-black text-white shadow-xl scale-110'
                                 : 'hover:bg-stone-50 text-stone-500 hover:text-stone-900 hover:scale-110'
-                        }`}
+                            }`}
                         title="Pen"
                     >
                         <div className="relative">
@@ -289,11 +282,10 @@ function WhiteboardToolbarComponent({
                     {/* Eraser */}
                     <button
                         onClick={() => handleToolClick('eraser')}
-                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${
-                            activeTool === 'eraser'
+                        className={`w-12 h-12 flex items-center justify-center rounded-full transition-all ${activeTool === 'eraser'
                                 ? 'bg-black text-white shadow-xl scale-110'
                                 : 'hover:bg-stone-50 text-stone-500 hover:text-stone-900 hover:scale-110'
-                        }`}
+                            }`}
                         title="Eraser"
                     >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

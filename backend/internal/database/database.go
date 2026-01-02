@@ -100,8 +100,28 @@ func ConnectDB() (*gorm.DB, error) {
 		&model.EventAttendee{},
 		&model.WorkspaceFile{},
 		&model.Notification{},
+		&model.WhiteboardStroke{},
 	); err != nil {
 		log.Printf("⚠️ AutoMigrate warning: %v", err)
+	}
+
+	// FORCE MANUAL CREATION (Fallback for persistent missing table issue)
+	// Sometimes GORM AutoMigrate might be skipped or silently fail in complex envs.
+	sql := `CREATE TABLE IF NOT EXISTS whiteboard_strokes (
+		id bigserial PRIMARY KEY,
+		meeting_id bigint NOT NULL,
+		user_id bigint NOT NULL,
+		stroke_data jsonb NOT NULL,
+		layer bigint DEFAULT 0,
+		is_deleted boolean DEFAULT false,
+		deleted_at timestamptz,
+		created_at timestamptz DEFAULT now()
+	);
+	CREATE INDEX IF NOT EXISTS idx_whiteboard_strokes_meeting_created ON whiteboard_strokes (meeting_id, created_at);
+	ALTER TABLE whiteboard_strokes ADD COLUMN IF NOT EXISTS deleted_at timestamptz;`
+
+	if err := db.Exec(sql).Error; err != nil {
+		log.Printf("⚠️ Manual Table Creation Warning: %v", err)
 	}
 
 	return db, nil

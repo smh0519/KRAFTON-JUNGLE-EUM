@@ -323,6 +323,10 @@ class ApiClient {
       throw new Error(error.error || 'Request failed');
     }
 
+    if (response.status === 204) {
+      return {} as T;
+    }
+
     return response.json();
   }
 
@@ -455,6 +459,13 @@ class ApiClient {
   // 워크스페이스 나가기
   async leaveWorkspace(workspaceId: number): Promise<{ message: string }> {
     return this.request(`/api/workspaces/${workspaceId}/leave`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 워크스페이스 멤버 강퇴
+  async kickMember(workspaceId: number, userId: number): Promise<{ message: string }> {
+    return this.request(`/api/workspaces/${workspaceId}/members/${userId}`, {
       method: 'DELETE',
     });
   }

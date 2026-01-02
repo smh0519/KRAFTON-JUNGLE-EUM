@@ -68,18 +68,16 @@ function HandIcon() {
     );
 }
 
-function CursorItem({ x, y, color, name, isLocal, scale, panOffset, tool, penColor, isDrawing }: CursorItemProps) {
-    const { x: screenX, y: screenY } = worldToScreen(x, y, panOffset, scale);
-
+export function CursorVisual({ color, name, tool, penColor, isDrawing, isLocal }: {
+    color: string;
+    name: string;
+    tool: WhiteboardTool;
+    penColor?: string;
+    isDrawing?: boolean;
+    isLocal?: boolean;
+}) {
     return (
-        <div
-            className="absolute pointer-events-none z-30 transition-all duration-75 ease-out"
-            style={{
-                left: screenX,
-                top: screenY,
-                transform: 'translate(-2px, -2px)',
-            }}
-        >
+        <>
             {/* Cursor Arrow SVG */}
             <svg
                 width="24"
@@ -130,6 +128,30 @@ function CursorItem({ x, y, color, name, isLocal, scale, panOffset, tool, penCol
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 )}
             </div>
+        </>
+    );
+}
+
+function CursorItem({ x, y, color, name, isLocal, scale, panOffset, tool, penColor, isDrawing }: CursorItemProps) {
+    const { x: screenX, y: screenY } = worldToScreen(x, y, panOffset, scale);
+
+    return (
+        <div
+            className="absolute pointer-events-none z-30 transition-all duration-75 ease-out"
+            style={{
+                left: screenX,
+                top: screenY,
+                transform: 'translate(-2px, -2px)',
+            }}
+        >
+            <CursorVisual
+                color={color}
+                name={name}
+                tool={tool}
+                penColor={penColor}
+                isDrawing={isDrawing}
+                isLocal={isLocal}
+            />
         </div>
     );
 }

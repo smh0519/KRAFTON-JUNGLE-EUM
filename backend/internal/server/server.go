@@ -104,7 +104,7 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 		app:                   app,
 		cfg:                   cfg,
 		db:                    db,
-		handler:               handler.NewAudioHandler(cfg),
+		handler:               handler.NewAudioHandler(cfg, db),
 		authHandler:           authHandler,
 		userHandler:           userHandler,
 		workspaceHandler:      workspaceHandler,
@@ -204,6 +204,7 @@ func (s *Server) SetupRoutes() {
 	workspaceGroup.Post("/:id/members", s.workspaceHandler.AddMembers)
 	workspaceGroup.Delete("/:id/leave", s.workspaceHandler.LeaveWorkspace)
 	workspaceGroup.Put("/:id/members/:userId/role", s.workspaceHandler.UpdateMemberRole)
+	workspaceGroup.Delete("/:id/members/:userId", s.workspaceHandler.KickMember)
 	workspaceGroup.Put("/:id", s.workspaceHandler.UpdateWorkspace)
 	workspaceGroup.Delete("/:id", s.workspaceHandler.DeleteWorkspace)
 
@@ -268,8 +269,9 @@ func (s *Server) SetupRoutes() {
 	s.app.Get("/api/video/rooms/participants", auth.AuthMiddleware(s.jwtManager), s.videoHandler.GetAllRoomsParticipants)
 
 	// Whiteboard 라우트
-	s.app.Get("/api/whiteboard", s.whiteboardHandler.GetWhiteboard)
-	s.app.Post("/api/whiteboard", s.whiteboardHandler.HandleWhiteboard)
+	// Whiteboard 라우트
+	s.app.Get("/api/whiteboard", auth.AuthMiddleware(s.jwtManager), s.whiteboardHandler.GetWhiteboard)
+	s.app.Post("/api/whiteboard", auth.AuthMiddleware(s.jwtManager), s.whiteboardHandler.HandleWhiteboard)
 
 	// WebSocket 업그레이드 체크 미들웨어
 	s.app.Use("/ws", func(c *fiber.Ctx) error {

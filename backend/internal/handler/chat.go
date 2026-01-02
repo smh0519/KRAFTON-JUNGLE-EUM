@@ -137,10 +137,12 @@ func (h *ChatHandler) SendMessage(c *fiber.Ctx) error {
 	}
 
 	// 권한 확인
-	if !h.hasPermission(int64(workspaceID), claims.UserID, "SEND_MESSAGES") {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "you do not have permission to send messages",
-		})
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "SEND_MESSAGES")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to send messages"})
 	}
 
 	var req SendMessageRequest
@@ -200,22 +202,6 @@ func (h *ChatHandler) isWorkspaceMember(workspaceID, userID int64) bool {
 	var count int64
 	h.db.Model(&model.WorkspaceMember{}).
 		Where("workspace_id = ? AND user_id = ? AND status = ?", workspaceID, userID, model.MemberStatusActive.String()).
-		Count(&count)
-	return count > 0
-}
-
-func (h *ChatHandler) hasPermission(workspaceID, userID int64, permissionCode string) bool {
-	// 소유자는 모든 권한을 가짐
-	var ownerID int64
-	h.db.Table("workspaces").Where("id = ?", workspaceID).Select("owner_id").Scan(&ownerID)
-	if ownerID == userID {
-		return true
-	}
-
-	var count int64
-	h.db.Table("role_permissions").
-		Joins("JOIN workspace_members ON workspace_members.role_id = role_permissions.role_id").
-		Where("workspace_members.workspace_id = ? AND workspace_members.user_id = ? AND role_permissions.permission_code = ?", workspaceID, userID, permissionCode).
 		Count(&count)
 	return count > 0
 }
@@ -344,11 +330,13 @@ func (h *ChatHandler) CreateChatRoom(c *fiber.Ctx) error {
 		})
 	}
 
-	// 멤버 확인
-	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "you are not a member of this workspace",
-		})
+	// 권한 확인
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "MANAGE_CHANNELS")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to create chat rooms"})
 	}
 
 	var req CreateChatRoomRequest
@@ -479,10 +467,12 @@ func (h *ChatHandler) SendChatRoomMessage(c *fiber.Ctx) error {
 	}
 
 	// 권한 확인
-	if !h.hasPermission(int64(workspaceID), claims.UserID, "SEND_MESSAGES") {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "you do not have permission to send messages",
-		})
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "SEND_MESSAGES")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to send messages"})
 	}
 
 	// 채팅방 확인
@@ -554,11 +544,13 @@ func (h *ChatHandler) UpdateChatRoom(c *fiber.Ctx) error {
 		})
 	}
 
-	// 멤버 확인
-	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "you are not a member of this workspace",
-		})
+	// 권한 확인
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "MANAGE_CHANNELS")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to update chat rooms"})
 	}
 
 	// 채팅방 확인
@@ -627,11 +619,13 @@ func (h *ChatHandler) DeleteChatRoom(c *fiber.Ctx) error {
 		})
 	}
 
-	// 멤버 확인
-	if !h.isWorkspaceMember(int64(workspaceID), claims.UserID) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"error": "you are not a member of this workspace",
-		})
+	// 권한 확인
+	hasPermission, err := auth.CheckPermission(h.db, int64(workspaceID), claims.UserID, "MANAGE_CHANNELS")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to check permission"})
+	}
+	if !hasPermission {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "you do not have permission to delete chat rooms"})
 	}
 
 	// 채팅방 확인
