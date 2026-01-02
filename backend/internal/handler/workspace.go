@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"log"
+
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 
@@ -276,7 +278,10 @@ func (h *WorkspaceHandler) GetWorkspace(c *fiber.Ctx) error {
 					{PermissionCode: "SEND_MESSAGES"},
 					{PermissionCode: "CONNECT_VOICE"},
 				}
-				h.db.Create(&defaultRole)
+				if err := h.db.Create(&defaultRole).Error; err != nil {
+					log.Printf("warning: failed to create default role for workspace %d: %v", workspace.ID, err)
+					return
+				}
 			}
 		}
 

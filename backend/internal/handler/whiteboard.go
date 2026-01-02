@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"realtime-backend/internal/model"
 	"strconv"
 	"strings"
@@ -57,12 +58,18 @@ func (h *WhiteboardHandler) GetWhiteboard(c *fiber.Ctx) error {
 
 	history := []any{}
 	if whiteboard.Data != nil {
-		json.Unmarshal([]byte(*whiteboard.Data), &history)
+		if err := json.Unmarshal([]byte(*whiteboard.Data), &history); err != nil {
+			log.Printf("warning: failed to unmarshal whiteboard history: %v", err)
+			history = []any{}
+		}
 	}
 
 	redoStack := []any{}
 	if whiteboard.RedoData != nil {
-		json.Unmarshal([]byte(*whiteboard.RedoData), &redoStack)
+		if err := json.Unmarshal([]byte(*whiteboard.RedoData), &redoStack); err != nil {
+			log.Printf("warning: failed to unmarshal whiteboard redo stack: %v", err)
+			redoStack = []any{}
+		}
 	}
 
 	return c.JSON(fiber.Map{
@@ -121,12 +128,18 @@ func (h *WhiteboardHandler) HandleWhiteboard(c *fiber.Ctx) error {
 
 	history := []any{}
 	if whiteboard.Data != nil {
-		json.Unmarshal([]byte(*whiteboard.Data), &history)
+		if err := json.Unmarshal([]byte(*whiteboard.Data), &history); err != nil {
+			log.Printf("warning: failed to unmarshal whiteboard history: %v", err)
+			history = []any{}
+		}
 	}
 
 	redoStack := []any{}
 	if whiteboard.RedoData != nil {
-		json.Unmarshal([]byte(*whiteboard.RedoData), &redoStack)
+		if err := json.Unmarshal([]byte(*whiteboard.RedoData), &redoStack); err != nil {
+			log.Printf("warning: failed to unmarshal whiteboard redo stack: %v", err)
+			redoStack = []any{}
+		}
 	}
 
 	switch req.Type {
