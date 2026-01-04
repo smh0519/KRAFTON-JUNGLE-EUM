@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,8 +138,12 @@ func (p *Pipeline) closeIdleStreams() {
 
 // ProcessAudio handles incoming audio from a speaker
 func (p *Pipeline) ProcessAudio(speakerID, sourceLang, speakerName string, audioData []byte) error {
+	log.Printf("[AWS Pipeline] ProcessAudio called: speaker=%s, lang=%s, audioSize=%d bytes",
+		speakerID, sourceLang, len(audioData))
+
 	stream, err := p.getOrCreateStream(speakerID, sourceLang)
 	if err != nil {
+		log.Printf("[AWS Pipeline] ERROR getting/creating stream: %v", err)
 		return err
 	}
 
@@ -148,7 +153,12 @@ func (p *Pipeline) ProcessAudio(speakerID, sourceLang, speakerName string, audio
 	p.streamLastActive[key] = time.Now()
 	p.streamsMu.Unlock()
 
-	return stream.SendAudio(audioData)
+	if err := stream.SendAudio(audioData); err != nil {
+		log.Printf("[AWS Pipeline] ERROR sending audio: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 // getOrCreateStream gets existing or creates new Transcribe stream for speaker
@@ -159,8 +169,18 @@ func (p *Pipeline) getOrCreateStream(speakerID, sourceLang string) (*TranscribeS
 	stream, exists := p.speakerStreams[key]
 	p.streamsMu.RUnlock()
 
+	// Check if existing stream is still alive
 	if exists {
-		return stream, nil
+		if stream.IsClosed() {
+			// Stream is dead, remove it and create new one
+			p.streamsMu.Lock()
+			delete(p.speakerStreams, key)
+			delete(p.streamLastActive, key)
+			p.streamsMu.Unlock()
+			log.Printf("[AWS Pipeline] Removed dead stream for speaker %s, will recreate", speakerID)
+		} else {
+			return stream, nil
+		}
 	}
 
 	p.streamsMu.Lock()
@@ -226,6 +246,9 @@ func (p *Pipeline) sendPartialTranscript(result *TranscriptResult) {
 	}
 }
 
+// Minimum text length to process (filter out noise like "네", "아", "서")
+const MinTextLengthForTranslation = 2
+
 // processFinalTranscript handles translation and TTS for final transcripts
 func (p *Pipeline) processFinalTranscript(result *TranscriptResult, sourceLang string) {
 	ctx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
@@ -237,8 +260,10 @@ func (p *Pipeline) processFinalTranscript(result *TranscriptResult, sourceLang s
 	copy(targetLangs, p.targetLanguages)
 	p.targetLangsMu.RUnlock()
 
-	// Skip empty text
-	if result.Text == "" {
+	// Skip empty or too short text (noise filtering)
+	text := strings.TrimSpace(result.Text)
+	if text == "" || len([]rune(text)) < MinTextLengthForTranslation {
+		log.Printf("[AWS Pipeline] Skipping short text (noise): '%s'", result.Text)
 		return
 	}
 

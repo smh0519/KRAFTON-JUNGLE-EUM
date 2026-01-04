@@ -71,6 +71,9 @@ func (c *TranscribeClient) StartStream(ctx context.Context, speakerID, sourceLan
 		log.Printf("[Transcribe] Unknown language '%s', defaulting to en-US", sourceLang)
 	}
 
+	log.Printf("[Transcribe] Starting stream for speaker %s with langCode=%v, sampleRate=%d",
+		speakerID, langCode, c.sampleRate)
+
 	streamCtx, cancel := context.WithCancel(ctx)
 
 	ts := &TranscribeStream{
@@ -90,13 +93,17 @@ func (c *TranscribeClient) StartStream(ctx context.Context, speakerID, sourceLan
 		MediaSampleRateHertz: aws.Int32(c.sampleRate),
 	})
 	if err != nil {
+		log.Printf("[Transcribe] ERROR StartStreamTranscription failed: %v", err)
 		cancel()
 		return nil, err
 	}
 
+	log.Printf("[Transcribe] StartStreamTranscription success, SessionId=%v", resp.SessionId)
+
 	ts.eventStream = resp.GetStream()
 
 	// Start goroutines for sending audio and receiving transcripts
+	// Note: Error checking is done in receiveLoop after event channel closes
 	go ts.sendAudioLoop()
 	go ts.receiveLoop()
 
@@ -105,7 +112,15 @@ func (c *TranscribeClient) StartStream(ctx context.Context, speakerID, sourceLan
 	return ts, nil
 }
 
+// MaxAudioChunkSize is the recommended audio chunk size for AWS Transcribe
+// AWS recommends 50-200ms chunks. For 16kHz mono PCM:
+// 100ms = 100/1000 * 16000 * 2 = 3,200 bytes
+// 200ms = 200/1000 * 16000 * 2 = 6,400 bytes
+// Using 100ms (3,200 bytes) for optimal latency
+const MaxAudioChunkSize = 3200
+
 // SendAudio sends audio data to the transcription stream
+// Large audio chunks are automatically split into 100ms chunks (~3.2KB for 16kHz mono)
 func (ts *TranscribeStream) SendAudio(audioData []byte) error {
 	ts.mu.Lock()
 	if ts.isClosed {
@@ -114,32 +129,60 @@ func (ts *TranscribeStream) SendAudio(audioData []byte) error {
 	}
 	ts.mu.Unlock()
 
-	select {
-	case ts.audioIn <- audioData:
-		return nil
-	case <-ts.ctx.Done():
-		return ts.ctx.Err()
-	default:
-		log.Printf("[Transcribe] Audio buffer full for speaker %s", ts.speakerID)
-		return nil
+	// Split large audio into chunks of MaxAudioChunkSize
+	for offset := 0; offset < len(audioData); offset += MaxAudioChunkSize {
+		end := offset + MaxAudioChunkSize
+		if end > len(audioData) {
+			end = len(audioData)
+		}
+		chunk := audioData[offset:end]
+
+		select {
+		case ts.audioIn <- chunk:
+			// Successfully queued
+		case <-ts.ctx.Done():
+			return ts.ctx.Err()
+		default:
+			log.Printf("[Transcribe] Audio buffer full for speaker %s", ts.speakerID)
+			return nil
+		}
 	}
+	return nil
 }
 
 // sendAudioLoop sends audio chunks to Transcribe
 func (ts *TranscribeStream) sendAudioLoop() {
 	defer func() {
+		log.Printf("[Transcribe] sendAudioLoop ended for speaker %s", ts.speakerID)
+		// Mark stream as closed
+		ts.mu.Lock()
+		ts.isClosed = true
+		ts.mu.Unlock()
 		if ts.eventStream != nil {
 			ts.eventStream.Close()
 		}
 	}()
 
+	audioChunkCount := 0
+	totalBytesSent := 0
 	for {
 		select {
 		case <-ts.ctx.Done():
+			log.Printf("[Transcribe] Context done for speaker %s, sent %d chunks (%d bytes total)", ts.speakerID, audioChunkCount, totalBytesSent)
 			return
 		case audioData, ok := <-ts.audioIn:
 			if !ok {
+				log.Printf("[Transcribe] audioIn channel closed for speaker %s, sent %d chunks (%d bytes total)", ts.speakerID, audioChunkCount, totalBytesSent)
 				return
+			}
+
+			audioChunkCount++
+			totalBytesSent += len(audioData)
+
+			// Log first 10 chunks, then every 50th chunk
+			if audioChunkCount <= 10 || audioChunkCount%50 == 0 {
+				log.Printf("[Transcribe] 📤 Sending audio chunk #%d to AWS for speaker %s (%d bytes, total: %d bytes)",
+					audioChunkCount, ts.speakerID, len(audioData), totalBytesSent)
 			}
 
 			err := ts.eventStream.Send(ts.ctx, &types.AudioStreamMemberAudioEvent{
@@ -148,7 +191,7 @@ func (ts *TranscribeStream) sendAudioLoop() {
 				},
 			})
 			if err != nil {
-				log.Printf("[Transcribe] Error sending audio for speaker %s: %v", ts.speakerID, err)
+				log.Printf("[Transcribe] ❌ ERROR sending audio chunk #%d for speaker %s: %v", audioChunkCount, ts.speakerID, err)
 				return
 			}
 		}
@@ -157,26 +200,46 @@ func (ts *TranscribeStream) sendAudioLoop() {
 
 // receiveLoop receives transcript results from Transcribe
 func (ts *TranscribeStream) receiveLoop() {
-	defer close(ts.TranscriptChan)
+	defer func() {
+		log.Printf("[Transcribe] receiveLoop ended for speaker %s", ts.speakerID)
+		// Mark stream as closed
+		ts.mu.Lock()
+		ts.isClosed = true
+		ts.mu.Unlock()
+		close(ts.TranscriptChan)
+	}()
+
+	log.Printf("[Transcribe] receiveLoop started for speaker %s", ts.speakerID)
 
 	// Events() returns a channel of transcript events
+	// Note: Don't check Err() before receiving - it should be checked AFTER the loop
 	events := ts.eventStream.Events()
 
-	for {
+	eventCount := 0
+	for event := range events {
+		// Check context cancellation
 		select {
 		case <-ts.ctx.Done():
+			log.Printf("[Transcribe] Context done in receiveLoop for speaker %s after %d events", ts.speakerID, eventCount)
 			return
-		case event, ok := <-events:
-			if !ok {
-				log.Printf("[Transcribe] Events channel closed for speaker %s", ts.speakerID)
-				return
-			}
-
-			switch e := event.(type) {
-			case *types.TranscriptResultStreamMemberTranscriptEvent:
-				ts.handleTranscriptEvent(e.Value)
-			}
+		default:
 		}
+
+		eventCount++
+		switch e := event.(type) {
+		case *types.TranscriptResultStreamMemberTranscriptEvent:
+			log.Printf("[Transcribe] ✅ Received transcript event #%d for speaker %s", eventCount, ts.speakerID)
+			ts.handleTranscriptEvent(e.Value)
+		default:
+			log.Printf("[Transcribe] Received unknown event type #%d for speaker %s: %T", eventCount, ts.speakerID, event)
+		}
+	}
+
+	// Check for errors AFTER the event loop completes (per AWS SDK pattern)
+	if err := ts.eventStream.Err(); err != nil {
+		log.Printf("[Transcribe] ❌ Stream error for speaker %s: %v", ts.speakerID, err)
+	} else {
+		log.Printf("[Transcribe] Events channel closed for speaker %s after %d events (clean close)", ts.speakerID, eventCount)
 	}
 }
 
@@ -220,6 +283,13 @@ func (ts *TranscribeStream) handleTranscriptEvent(event types.TranscriptEvent) {
 			log.Printf("[Transcribe] Transcript channel full for speaker %s", ts.speakerID)
 		}
 	}
+}
+
+// IsClosed returns whether the stream has been closed
+func (ts *TranscribeStream) IsClosed() bool {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	return ts.isClosed
 }
 
 // Close terminates the transcription stream

@@ -75,11 +75,17 @@ func (c *TranslateClient) Translate(ctx context.Context, text, sourceLang, targe
 		TargetLanguageCode: aws.String(tgtCode),
 	}
 
+	log.Printf("[Translate] Translating: '%s' from %s(%s) to %s(%s)",
+		text, sourceLang, srcCode, targetLang, tgtCode)
+
 	output, err := c.client.TranslateText(ctx, input)
 	if err != nil {
-		log.Printf("[Translate] Error translating from %s to %s: %v", sourceLang, targetLang, err)
+		log.Printf("[Translate] ❌ Error translating from %s to %s: %v", sourceLang, targetLang, err)
 		return nil, err
 	}
+
+	log.Printf("[Translate] ✅ Result: '%s' → '%s' (%s→%s)",
+		text, aws.ToString(output.TranslatedText), srcCode, tgtCode)
 
 	return &TranslationResult{
 		SourceText:     text,

@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/contrib/websocket"
 
 	"realtime-backend/internal/ai"
+	"realtime-backend/internal/cache"
 	"realtime-backend/internal/config"
 	"realtime-backend/internal/model"
 	"realtime-backend/internal/session"
@@ -17,36 +18,48 @@ import (
 
 // AudioHandler 오디오 WebSocket 핸들러
 type AudioHandler struct {
-	cfg      *config.Config
-	aiClient *ai.GrpcClient
-	roomHub  *RoomHub // Room 기반 연결 관리
+	cfg         *config.Config
+	aiClient    *ai.GrpcClient
+	roomHub     *RoomHub             // Room 기반 연결 관리
+	redisClient *cache.RedisClient   // Redis/Valkey 클라이언트
 }
 
 // NewAudioHandler AudioHandler 생성자
 func NewAudioHandler(cfg *config.Config) *AudioHandler {
 	handler := &AudioHandler{cfg: cfg}
 
+	// Redis/Valkey 클라이언트 초기화
+	if cfg.Redis.Enabled && cfg.Redis.Addr != "" {
+		redisClient, err := cache.NewRedisClient(cfg.Redis.Addr)
+		if err != nil {
+			log.Printf("⚠️ Failed to connect to Redis/Valkey: %v (transcript caching disabled)", err)
+		} else {
+			handler.redisClient = redisClient
+			log.Printf("🔴 Connected to Redis/Valkey at %s", cfg.Redis.Addr)
+		}
+	}
+
 	// AI 모드 결정
 	if cfg.AI.Enabled {
 		if cfg.AI.UseAWS {
 			// AWS 직접 사용 모드
 			log.Println("☁️ AWS AI services mode enabled (Transcribe/Translate/Polly)")
-			handler.roomHub = NewRoomHub(nil, cfg, true)
+			handler.roomHub = NewRoomHub(nil, cfg, true, handler.redisClient)
 		} else {
 			// Python gRPC 서버 모드
 			client, err := ai.NewGrpcClient(cfg.AI.ServerAddr)
 			if err != nil {
 				log.Printf("⚠️ Failed to connect to AI server: %v (running in echo mode)", err)
-				handler.roomHub = NewRoomHub(nil, cfg, false)
+				handler.roomHub = NewRoomHub(nil, cfg, false, handler.redisClient)
 			} else {
 				handler.aiClient = client
 				log.Printf("🤖 Connected to AI server at %s", cfg.AI.ServerAddr)
-				handler.roomHub = NewRoomHub(client, cfg, false)
+				handler.roomHub = NewRoomHub(client, cfg, false, handler.redisClient)
 			}
 		}
 	} else {
 		log.Println("ℹ️ AI disabled, running in echo mode")
-		handler.roomHub = NewRoomHub(nil, cfg, false)
+		handler.roomHub = NewRoomHub(nil, cfg, false, handler.redisClient)
 	}
 
 	log.Println("🏠 RoomHub initialized for room-based connections")
@@ -57,7 +70,14 @@ func NewAudioHandler(cfg *config.Config) *AudioHandler {
 // Close 핸들러 리소스 정리
 func (h *AudioHandler) Close() error {
 	if h.aiClient != nil {
-		return h.aiClient.Close()
+		if err := h.aiClient.Close(); err != nil {
+			log.Printf("⚠️ Error closing AI client: %v", err)
+		}
+	}
+	if h.redisClient != nil {
+		if err := h.redisClient.Close(); err != nil {
+			log.Printf("⚠️ Error closing Redis client: %v", err)
+		}
 	}
 	return nil
 }
