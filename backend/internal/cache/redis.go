@@ -158,3 +158,40 @@ func (r *RedisClient) Close() error {
 func (r *RedisClient) Health(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
 }
+
+// Generic Redis Operations
+
+// Set sets a key-value pair with expiration
+func (r *RedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	return r.client.Set(ctx, key, value, expiration).Err()
+}
+
+// Get gets a value by key
+func (r *RedisClient) Get(ctx context.Context, key string) (string, error) {
+	return r.client.Get(ctx, key).Result()
+}
+
+// HGetAll gets all fields and values from a hash
+func (r *RedisClient) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	return r.client.HGetAll(ctx, key).Result()
+}
+
+// HIncrBy increments the integer value of a hash field by the given number
+func (r *RedisClient) HIncrBy(ctx context.Context, key, field string, incr int64) (int64, error) {
+	return r.client.HIncrBy(ctx, key, field, incr).Result()
+}
+
+// SAdd adds one or more members to a set
+func (r *RedisClient) SAdd(ctx context.Context, key string, members ...interface{}) error {
+	return r.client.SAdd(ctx, key, members...).Err()
+}
+
+// SIsMember checks if a member exists in a set
+func (r *RedisClient) SIsMember(ctx context.Context, key string, member interface{}) (bool, error) {
+	return r.client.SIsMember(ctx, key, member).Result()
+}
+
+// SRem removes one or more members from a set
+func (r *RedisClient) SRem(ctx context.Context, key string, members ...interface{}) error {
+	return r.client.SRem(ctx, key, members...).Err()
+}

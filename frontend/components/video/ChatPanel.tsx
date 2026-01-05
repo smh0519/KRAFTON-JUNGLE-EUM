@@ -126,6 +126,24 @@ export default function ChatPanel({ roomId, onClose, onNewMessage, voiceRecords 
         }
     }, [roomId, localParticipant]);
 
+    const fetchPoll = async (pollId: string) => {
+        try {
+            const res = await fetch(`/api/polls/${pollId}`);
+            if (res.ok) {
+                const data = await res.json();
+                setPollVotes(prev => ({
+                    ...prev,
+                    [pollId]: data.votes
+                }));
+                if (data.poll.isClosed) {
+                    setClosedPolls(prev => new Set(prev).add(pollId));
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch poll:', e);
+        }
+    };
+
     useEffect(() => {
         if (!room) return;
 
@@ -136,10 +154,11 @@ export default function ChatPanel({ roomId, onClose, onNewMessage, voiceRecords 
 
                 if (data.type === 'chat') {
                     // Check if content is a JSON string (Poll)
-                    let isPoll = false;
                     try {
                         const contentJson = JSON.parse(data.content);
-                        if (contentJson.type === 'POLL_CREATE') isPoll = true;
+                        if (contentJson.type === 'POLL_CREATE') {
+                            // Optionally fetch initial state
+                        }
                     } catch { }
 
                     const newMessage: ChatMessage = {
@@ -152,18 +171,9 @@ export default function ChatPanel({ roomId, onClose, onNewMessage, voiceRecords 
                     setMessages((prev) => [...prev, newMessage]);
                     onNewMessage?.();
                 } else if (data.type === 'POLL_VOTE') {
-                    // Handle incoming vote
-                    const { pollId, optionIndex } = data;
-                    setPollVotes(prev => {
-                        const currentPollVotes = prev[pollId] || {};
-                        return {
-                            ...prev,
-                            [pollId]: {
-                                ...currentPollVotes,
-                                [optionIndex]: (currentPollVotes[optionIndex] || 0) + 1
-                            }
-                        };
-                    });
+                    // Handle incoming vote -> Refetch source of truth
+                    const { pollId } = data;
+                    fetchPoll(pollId);
                 } else if (data.type === 'POLL_CLOSE') {
                     setClosedPolls(prev => new Set(prev).add(data.pollId));
                 }
@@ -211,6 +221,7 @@ export default function ChatPanel({ roomId, onClose, onNewMessage, voiceRecords 
             await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ roomId, message }), // Persist poll creation messages too
             });
 
@@ -221,81 +232,92 @@ export default function ChatPanel({ roomId, onClose, onNewMessage, voiceRecords 
         }
     }, [input, room, localParticipant, roomId]);
 
-    const handleCreatePoll = (question: string, options: string[], duration: number) => {
-        const pollId = `poll-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-        const now = Date.now();
-        const pollPayload: PollData & { type: string } = {
-            type: 'POLL_CREATE',
-            id: pollId,
-            question,
-            options,
-            isAnonymous: true,
-            createdAt: now,
-            expiresAt: duration > 0 ? now + duration : undefined
-        };
-        sendMessage(JSON.stringify(pollPayload));
-        setShowPollForm(false);
-        setShowPlusMenu(false);
-    };
+    const handleCreatePoll = async (question: string, options: string[], duration: number) => {
+        try {
+            const res = await fetch('/api/polls', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({
+                    question,
+                    options,
+                    duration,
+                    isAnonymous: true
+                })
+            });
 
-    const handleClosePoll = (pollId: string) => {
-        setClosedPolls(prev => new Set(prev).add(pollId));
-        const closePayload = {
-            type: 'POLL_CLOSE',
-            pollId
-        };
-        sendMessage(JSON.stringify(closePayload), 'POLL_CLOSE');
-    };
-
-    const handleVote = (pollId: string, optionIndex: number) => {
-        // Prevent double voting locally (simple check)
-        if (myVotes[pollId] !== undefined) return;
-
-        // Find existing poll message to check expiration
-        const pollMsg = messages.find(m => {
-            try {
-                const data = JSON.parse(m.content);
-                return data.type === 'POLL_CREATE' && data.id === pollId;
-            } catch { return false; }
-        });
-
-        if (pollMsg) {
-            try {
-                const pollData = JSON.parse(pollMsg.content) as PollData;
-                if (pollData.expiresAt && Date.now() > pollData.expiresAt) {
-                    alert('투표가 마감되었습니다.');
-                    return;
-                }
-            } catch { }
+            if (res.ok) {
+                const pollData = await res.json();
+                const pollPayload = {
+                    ...pollData,
+                    type: 'POLL_CREATE'
+                };
+                sendMessage(JSON.stringify(pollPayload));
+                setShowPollForm(false);
+                setShowPlusMenu(false);
+            } else {
+                alert('투표 생성 실패');
+            }
+        } catch (e) {
+            console.error('Failed to create poll:', e);
+            alert('투표 생성 중 오류가 발생했습니다.');
         }
-
-        if (closedPolls.has(pollId)) {
-            alert('투표가 종료되었습니다.');
-            return;
-        }
-
-        setMyVotes(prev => ({ ...prev, [pollId]: optionIndex }));
-
-        // Optimistic update
-        setPollVotes(prev => {
-            const currentPollVotes = prev[pollId] || {};
-            return {
-                ...prev,
-                [pollId]: {
-                    ...currentPollVotes,
-                    [optionIndex]: (currentPollVotes[optionIndex] || 0) + 1
-                }
-            };
-        });
-
-        // Broadcast invisible vote
-        const votePayload = {
-            type: 'POLL_VOTE',
-            pollId,
-            optionIndex
-        };
-        sendMessage(JSON.stringify(votePayload), 'POLL_VOTE');
     };
+
+    const handleClosePoll = async (pollId: string) => {
+        try {
+            const res = await fetch(`/api/polls/${pollId}/close`, {
+                method: 'POST'
+            });
+            if (res.ok) {
+                setClosedPolls(prev => new Set(prev).add(pollId));
+                const closePayload = {
+                    type: 'POLL_CLOSE',
+                    pollId
+                };
+                sendMessage(JSON.stringify(closePayload), 'POLL_CLOSE');
+            }
+        } catch (e) {
+            console.error('Failed to close poll:', e);
+        }
+    };
+
+    const handleVote = async (pollId: string, optionIndex: number) => {
+        try {
+            const res = await fetch(`/api/polls/${pollId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ optionIndex })
+            });
+
+            if (res.ok) {
+                // Update local 'my vote'
+                setMyVotes(prev => ({
+                    ...prev,
+                    [pollId]: optionIndex
+                }));
+
+                // Fetch latest votes
+                fetchPoll(pollId);
+
+                // Notify others to refetch
+                const votePayload = {
+                    type: 'POLL_VOTE',
+                    pollId,
+                    optionIndex
+                };
+                sendMessage(JSON.stringify(votePayload), 'POLL_VOTE');
+            } else {
+                const err = await res.json();
+                if (err.error === 'Already voted') {
+                    // Ignore
+                }
+            }
+        } catch (e) {
+            console.error('Failed to vote:', e);
+        }
+    };
+
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {

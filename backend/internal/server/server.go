@@ -16,11 +16,12 @@ import (
 	"gorm.io/gorm"
 
 	"realtime-backend/internal/auth"
+	"realtime-backend/internal/cache"
 	"realtime-backend/internal/config"
 	"realtime-backend/internal/handler"
+	"realtime-backend/internal/middleware"
 	"realtime-backend/internal/model"
 	"realtime-backend/internal/presence"
-	"realtime-backend/internal/middleware"
 	"realtime-backend/internal/service"
 	"realtime-backend/internal/storage"
 )
@@ -47,6 +48,7 @@ type Server struct {
 	voiceRecordHandler         *handler.VoiceRecordHandler
 	voiceParticipantsWSHandler *handler.VoiceParticipantsWSHandler
 	healthHandler              *handler.HealthHandler
+	pollHandler                *handler.PollHandler
 	jwtManager                 *auth.JWTManager
 	memberService              *service.MemberService
 	workspaceMW                *middleware.WorkspaceMiddleware
@@ -124,27 +126,41 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 		roomHub.SetDB(db)
 	}
 
+	// Poll Handler 초기화 (Redis 재사용 또는 신규 생성)
+	var pollHandler *handler.PollHandler
+	if cfg.Redis.Enabled && cfg.Redis.Addr != "" {
+		// 오디오 핸들러와 별도로 Redis 연결 생성 (커넥션 풀링으로 효율적)
+		redisClient, err := cache.NewRedisClient(cfg.Redis.Addr, cfg.Redis.Password)
+		if err != nil {
+			log.Printf("⚠️ PollHandler Redis connection failed: %v", err)
+		} else {
+			pollHandler = handler.NewPollHandler(redisClient)
+			log.Println("📊 PollHandler initialized with Redis")
+		}
+	}
+
 	return &Server{
-		app:                   app,
-		cfg:                   cfg,
-		db:                    db,
-		handler:               audioHandler,
-		authHandler:           authHandler,
-		userHandler:           userHandler,
-		workspaceHandler:      workspaceHandler,
-		notificationHandler:   notificationHandler,
-		notificationWSHandler: notificationWSHandler,
-		chatHandler:           chatHandler,
-		chatWSHandler:         chatWSHandler,
-		meetingHandler:        meetingHandler,
-		calendarHandler:       calendarHandler,
-		storageHandler:        storageHandler,
-		roleHandler:           roleHandler,
+		app:                        app,
+		cfg:                        cfg,
+		db:                         db,
+		handler:                    audioHandler,
+		authHandler:                authHandler,
+		userHandler:                userHandler,
+		workspaceHandler:           workspaceHandler,
+		notificationHandler:        notificationHandler,
+		notificationWSHandler:      notificationWSHandler,
+		chatHandler:                chatHandler,
+		chatWSHandler:              chatWSHandler,
+		meetingHandler:             meetingHandler,
+		calendarHandler:            calendarHandler,
+		storageHandler:             storageHandler,
+		roleHandler:                roleHandler,
 		videoHandler:               videoHandler,
 		whiteboardHandler:          whiteboardHandler,
 		voiceRecordHandler:         voiceRecordHandler,
 		voiceParticipantsWSHandler: voiceParticipantsWSHandler,
 		healthHandler:              healthHandler,
+		pollHandler:                pollHandler, // Added
 		jwtManager:                 jwtManager,
 		memberService:              memberService,
 		workspaceMW:                workspaceMW,
@@ -180,8 +196,8 @@ func (s *Server) SetupMiddleware() {
 // SetupRoutes 라우트 설정
 func (s *Server) SetupRoutes() {
 	// 헬스체크 엔드포인트
-	s.app.Get("/", s.healthHandler.Liveness)           // ALB 헬스체크용
-	s.app.Get("/health", s.healthHandler.Check)        // 전체 상태 (DB + AI)
+	s.app.Get("/", s.healthHandler.Liveness)              // ALB 헬스체크용
+	s.app.Get("/health", s.healthHandler.Check)           // 전체 상태 (DB + AI)
 	s.app.Get("/health/live", s.healthHandler.Liveness)   // K8s liveness probe
 	s.app.Get("/health/ready", s.healthHandler.Readiness) // K8s readiness probe
 
@@ -198,6 +214,19 @@ func (s *Server) SetupRoutes() {
 			})
 		},
 	})
+
+	// API 그룹
+	api := s.app.Group("/api")
+
+	// ... (Existing routes) ...
+	// Poll Routes (Requires Auth)
+	if s.pollHandler != nil {
+		poll := api.Group("/polls", auth.AuthMiddleware(s.jwtManager))
+		poll.Post("", s.pollHandler.CreatePoll)
+		poll.Get("/:id", s.pollHandler.GetPoll)
+		poll.Post("/:id/vote", s.pollHandler.Vote)
+		poll.Post("/:id/close", s.pollHandler.ClosePoll)
+	}
 
 	// Auth 라우트 그룹
 	authGroup := s.app.Group("/auth")
