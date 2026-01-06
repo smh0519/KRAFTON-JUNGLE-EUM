@@ -54,11 +54,41 @@ interface Workspace {
   created_at: string;
   owner?: UserSearchResult;
   members?: WorkspaceMember[];
+  category_ids?: number[];
 }
 
 interface WorkspacesResponse {
   workspaces: Workspace[];
   total: number;
+  has_more?: boolean;
+}
+
+// 워크스페이스 카테고리 관련 타입
+interface WorkspaceCategory {
+  id: number;
+  user_id: number;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  workspace_count?: number;
+}
+
+interface WorkspaceCategoriesResponse {
+  categories: WorkspaceCategory[];
+  total: number;
+}
+
+interface CreateCategoryRequest {
+  name: string;
+  color?: string;
+}
+
+interface WorkspacesQueryParams {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  category_id?: number;
 }
 
 interface CreateWorkspaceRequest {
@@ -486,9 +516,17 @@ class ApiClient {
     });
   }
 
-  // 내 워크스페이스 목록 조회
-  async getMyWorkspaces(): Promise<WorkspacesResponse> {
-    return this.request<WorkspacesResponse>('/api/workspaces/');
+  // 내 워크스페이스 목록 조회 (페이지네이션, 검색 지원)
+  async getMyWorkspaces(params?: WorkspacesQueryParams): Promise<WorkspacesResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    if (params?.search) searchParams.append('search', params.search);
+    if (params?.category_id) searchParams.append('category_id', params.category_id.toString());
+
+    const queryString = searchParams.toString();
+    const url = queryString ? `/api/workspaces/?${queryString}` : '/api/workspaces/';
+    return this.request<WorkspacesResponse>(url);
   }
 
   // 워크스페이스 상세 조회
@@ -529,6 +567,43 @@ class ApiClient {
   // 워크스페이스 삭제
   async deleteWorkspace(workspaceId: number): Promise<void> {
     await this.request(`/api/workspaces/${workspaceId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ========== 워크스페이스 카테고리 API ==========
+  async getMyCategories(): Promise<WorkspaceCategoriesResponse> {
+    return this.request<WorkspaceCategoriesResponse>('/api/workspace-categories');
+  }
+
+  async createCategory(data: CreateCategoryRequest): Promise<WorkspaceCategory> {
+    return this.request<WorkspaceCategory>('/api/workspace-categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCategory(categoryId: number, data: Partial<CreateCategoryRequest>): Promise<WorkspaceCategory> {
+    return this.request<WorkspaceCategory>(`/api/workspace-categories/${categoryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCategory(categoryId: number): Promise<{ message: string }> {
+    return this.request(`/api/workspace-categories/${categoryId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addWorkspaceToCategory(categoryId: number, workspaceId: number): Promise<{ message: string }> {
+    return this.request(`/api/workspace-categories/${categoryId}/workspaces/${workspaceId}`, {
+      method: 'POST',
+    });
+  }
+
+  async removeWorkspaceFromCategory(categoryId: number, workspaceId: number): Promise<{ message: string }> {
+    return this.request(`/api/workspace-categories/${categoryId}/workspaces/${workspaceId}`, {
       method: 'DELETE',
     });
   }
@@ -882,6 +957,11 @@ export type {
   WorkspaceMember,
   WorkspacesResponse,
   CreateWorkspaceRequest,
+  WorkspacesQueryParams,
+  // Category
+  WorkspaceCategory,
+  WorkspaceCategoriesResponse,
+  CreateCategoryRequest,
   // Chat
   ChatMessage,
   ChatsResponse,

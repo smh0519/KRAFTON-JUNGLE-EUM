@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
         source: "/uploads/:path*",
         destination: "http://localhost:8080/uploads/:path*",
       },
+      {
+        source: "/api/:path*",
+        destination: "http://localhost:8080/api/:path*",
+      },
+      {
+        source: "/auth/:path*",
+        destination: "http://localhost:8080/auth/:path*",
+      },
     ];
   },
   async headers() {

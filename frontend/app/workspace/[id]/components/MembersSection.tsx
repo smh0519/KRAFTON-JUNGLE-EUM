@@ -8,6 +8,7 @@ import { useAuth } from "../../../lib/auth-context";
 import { usePermission } from "../../../hooks/usePermission";
 import { usePresence } from "../../../contexts/presence-context";
 import StatusIndicator from "../../../../components/StatusIndicator";
+import { Plus, Search, MessageSquare, Trash2 } from "lucide-react";
 
 interface MembersSectionProps {
   workspace: Workspace;
@@ -149,9 +150,7 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
               onClick={() => setShowInviteModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-black/80 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+              <Plus size={16} />
               멤버 초대
             </button>
           )}
@@ -167,14 +166,7 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-black/[0.03] border-0 rounded-lg text-sm placeholder:text-black/30 focus:outline-none focus:ring-2 focus:ring-black/10"
             />
-            <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-black/30"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" />
           </div>
         </div>
       </div>
@@ -256,12 +248,10 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                         e.stopPropagation();
                         handleStartDM(member.userId);
                       }}
-                      className="p-2 rounded-lg hover:bg-black/5 text-black/40 hover:text-blue-500 transition-colors relative"
+                      className="p-2 rounded-lg hover:bg-black/5 text-black/40 hover:text-black transition-colors relative"
                       title="DM 보내기"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                      </svg>
+                      <MessageSquare size={18} strokeWidth={1.5} />
                       {unreadCounts[member.userId] > 0 && (
                         <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
                       )}
@@ -277,9 +267,7 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                       className="p-2 rounded-lg hover:bg-red-50 text-black/20 hover:text-red-500 transition-colors"
                       title="멤버 강퇴"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                      <Trash2 size={18} strokeWidth={1.5} />
                     </button>
                   )}
                 </div>

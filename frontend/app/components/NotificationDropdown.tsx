@@ -5,6 +5,7 @@ import { apiClient, Notification } from "../lib/api";
 import { NotificationType } from "../lib/constants";
 import { usePresence } from "../contexts/presence-context";
 import { useAuth } from "../lib/auth-context";
+import { Bell, Inbox, Loader2, Check, X } from "lucide-react";
 
 interface NotificationDropdownProps {
     onInvitationAccepted?: (workspaceId: number) => void;
@@ -19,7 +20,6 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
     const [processingId, setProcessingId] = useState<number | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // 알림 목록 가져오기
     const fetchNotifications = useCallback(async () => {
         if (!isAuthenticated) return;
         try {
@@ -33,21 +33,17 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         }
     }, [isAuthenticated]);
 
-    // 실시간 알림 수신 (Context 사용)
     useEffect(() => {
         if (latestNotification) {
             setNotifications(prev => {
-                // 중복 방지
                 if (prev.some(n => n.id === latestNotification.id)) {
                     return prev;
                 }
-                // 새 알림을 맨 앞에 추가
                 return [latestNotification, ...prev];
             });
         }
     }, [latestNotification]);
 
-    // 인증 시 알림 목록 로드
     useEffect(() => {
         if (isAuthenticated) {
             fetchNotifications();
@@ -56,14 +52,12 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         }
     }, [isAuthenticated, fetchNotifications]);
 
-    // 드롭다운 열릴 때 알림 목록 가져오기
     useEffect(() => {
         if (isOpen && isAuthenticated) {
             fetchNotifications();
         }
     }, [isOpen, isAuthenticated, fetchNotifications]);
 
-    // 외부 클릭 시 드롭다운 닫기
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -74,7 +68,6 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // 초대 수락
     const handleAccept = async (notification: Notification) => {
         try {
             setProcessingId(notification.id);
@@ -90,7 +83,6 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         }
     };
 
-    // 초대 거절
     const handleDecline = async (notification: Notification) => {
         try {
             setProcessingId(notification.id);
@@ -103,7 +95,6 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
         }
     };
 
-    // 상대 시간 계산
     const getRelativeTime = (dateString: string) => {
         const date = new Date(dateString);
         const now = new Date();
@@ -120,90 +111,91 @@ export default function NotificationDropdown({ onInvitationAccepted }: Notificat
 
     return (
         <div ref={dropdownRef} className="relative">
-            {/* 알림 버튼 */}
+            {/* Notification Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-2 rounded-lg hover:bg-black/5 text-black/40 hover:text-black/70 transition-colors relative"
+                className="p-2 rounded-lg hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition-colors relative"
             >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                {/* 알림 배지 */}
+                <Bell size={18} strokeWidth={1.5} />
                 {notifications.length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-medium rounded-full flex items-center justify-center">
-                        {notifications.length > 9 ? "9+" : notifications.length}
-                    </span>
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                 )}
             </button>
 
-            {/* 드롭다운 */}
+            {/* Dropdown */}
             {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-black/10 overflow-hidden z-50">
-                    <div className="px-4 py-3 border-b border-black/5">
-                        <h3 className="font-semibold text-black">알림</h3>
+                <div className="absolute right-0 top-full mt-2 w-80 bg-[#141414] rounded-xl shadow-2xl border border-white/[0.08] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-4 py-3 border-b border-white/[0.06]">
+                        <h3 className="font-medium text-white/90 text-sm">알림</h3>
                     </div>
 
                     {isLoading ? (
-                        <div className="p-4 text-center text-black/50">로딩 중...</div>
+                        <div className="p-6 flex items-center justify-center">
+                            <Loader2 size={20} className="animate-spin text-white/30" />
+                        </div>
                     ) : notifications.length === 0 ? (
-                        <div className="p-6 text-center text-black/40">
-                            <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                            </svg>
-                            <p className="text-sm">새로운 알림이 없습니다</p>
+                        <div className="p-8 text-center">
+                            <div className="w-12 h-12 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
+                                <Inbox size={20} className="text-white/20" />
+                            </div>
+                            <p className="text-sm text-white/30">새로운 알림이 없습니다</p>
                         </div>
                     ) : (
                         <div className="max-h-80 overflow-y-auto">
                             {notifications.map((notification) => (
                                 <div
                                     key={notification.id}
-                                    className="p-4 border-b border-black/5 last:border-b-0 hover:bg-black/[0.02] transition-colors"
+                                    className="p-4 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors"
                                 >
                                     <div className="flex items-start gap-3">
-                                        {/* 발신자 아바타 */}
+                                        {/* Sender Avatar */}
                                         {notification.sender?.profile_img ? (
                                             <img
                                                 src={notification.sender.profile_img}
                                                 alt={notification.sender.nickname}
-                                                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                                className="w-9 h-9 rounded-full object-cover flex-shrink-0 ring-1 ring-white/10"
                                             />
                                         ) : notification.sender ? (
-                                            <div className="w-10 h-10 rounded-full bg-black flex items-center justify-center flex-shrink-0">
-                                                <span className="text-sm font-medium text-white">
+                                            <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
+                                                <span className="text-xs font-medium text-white/70">
                                                     {notification.sender.nickname.charAt(0).toUpperCase()}
                                                 </span>
                                             </div>
                                         ) : (
-                                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                                </svg>
+                                            <div className="w-9 h-9 rounded-full bg-white/[0.06] flex items-center justify-center flex-shrink-0">
+                                                <Bell size={14} className="text-white/30" />
                                             </div>
                                         )}
 
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm text-black">
+                                            <p className="text-sm text-white/80 leading-relaxed">
                                                 {notification.content}
                                             </p>
-                                            <p className="text-xs text-black/40 mt-1">
+                                            <p className="text-xs text-white/30 mt-1">
                                                 {getRelativeTime(notification.created_at)}
                                             </p>
 
-                                            {/* 초대 알림인 경우 수락/거절 버튼 */}
+                                            {/* Invitation Actions */}
                                             {notification.type === NotificationType.WORKSPACE_INVITE && (
                                                 <div className="flex gap-2 mt-3">
                                                     <button
                                                         onClick={() => handleAccept(notification)}
                                                         disabled={processingId === notification.id}
-                                                        className="flex-1 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-lg hover:bg-black/80 transition-colors disabled:opacity-50"
+                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white text-[#0a0a0a] text-xs font-medium rounded-lg hover:bg-white/90 transition-colors disabled:opacity-50"
                                                     >
-                                                        {processingId === notification.id ? "처리 중..." : "수락"}
+                                                        {processingId === notification.id ? (
+                                                            <Loader2 size={12} className="animate-spin" />
+                                                        ) : (
+                                                            <Check size={12} />
+                                                        )}
+                                                        수락
                                                     </button>
                                                     <button
                                                         onClick={() => handleDecline(notification)}
                                                         disabled={processingId === notification.id}
-                                                        className="flex-1 px-3 py-1.5 bg-black/5 text-black/70 text-xs font-medium rounded-lg hover:bg-black/10 transition-colors disabled:opacity-50"
+                                                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/[0.06] text-white/60 text-xs font-medium rounded-lg hover:bg-white/[0.1] hover:text-white/80 transition-colors disabled:opacity-50"
                                                     >
+                                                        <X size={12} />
                                                         거절
                                                     </button>
                                                 </div>
