@@ -29,12 +29,13 @@ type CreateWorkspaceRequest struct {
 
 // WorkspaceResponse 워크스페이스 응답
 type WorkspaceResponse struct {
-	ID        int64                     `json:"id"`
-	Name      string                    `json:"name"`
-	OwnerID   int64                     `json:"owner_id"`
-	CreatedAt string                    `json:"created_at"`
-	Owner     *UserResponse             `json:"owner,omitempty"`
-	Members   []WorkspaceMemberResponse `json:"members,omitempty"`
+	ID          int64                     `json:"id"`
+	Name        string                    `json:"name"`
+	OwnerID     int64                     `json:"owner_id"`
+	CreatedAt   string                    `json:"created_at"`
+	Owner       *UserResponse             `json:"owner,omitempty"`
+	Members     []WorkspaceMemberResponse `json:"members,omitempty"`
+	CategoryIDs []int64                   `json:"category_ids,omitempty"`
 }
 
 // WorkspaceMemberResponse 워크스페이스 멤버 응답
@@ -194,22 +195,55 @@ func (h *WorkspaceHandler) CreateWorkspace(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(h.toWorkspaceResponse(&workspace))
 }
 
-// GetMyWorkspaces 내 워크스페이스 목록
+// GetMyWorkspaces 내 워크스페이스 목록 (페이지네이션, 검색, 카테고리 필터 지원)
 func (h *WorkspaceHandler) GetMyWorkspaces(c *fiber.Ctx) error {
 	claims := c.Locals("claims").(*auth.Claims)
 
-	var workspaces []model.Workspace
+	// 쿼리 파라미터
+	limit := c.QueryInt("limit", 0)    // 0이면 전체 조회
+	offset := c.QueryInt("offset", 0)
+	search := c.Query("search", "")
+	categoryID := c.QueryInt("category_id", 0)
 
-	// 내가 ACTIVE 멤버로 속한 워크스페이스 조회
-	err := h.db.
+	var workspaces []model.Workspace
+	var total int64
+
+	// 기본 쿼리: 내가 ACTIVE 멤버로 속한 워크스페이스
+	query := h.db.Model(&model.Workspace{}).
 		Joins("JOIN workspace_members ON workspace_members.workspace_id = workspaces.id").
-		Where("workspace_members.user_id = ? AND workspace_members.status = ?", claims.UserID, model.MemberStatusActive.String()).
+		Where("workspace_members.user_id = ? AND workspace_members.status = ?", claims.UserID, model.MemberStatusActive.String())
+
+	// 검색 필터
+	if search != "" {
+		query = query.Where("workspaces.name ILIKE ?", "%"+search+"%")
+	}
+
+	// 카테고리 필터
+	if categoryID > 0 {
+		query = query.Joins("JOIN workspace_category_mappings ON workspace_category_mappings.workspace_id = workspaces.id").
+			Where("workspace_category_mappings.category_id = ? AND workspace_category_mappings.user_id = ?", categoryID, claims.UserID)
+	}
+
+	// 전체 개수 조회
+	if err := query.Count(&total).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to count workspaces",
+		})
+	}
+
+	// 정렬 및 페이지네이션
+	query = query.Order("workspaces.created_at DESC")
+	if limit > 0 {
+		query = query.Limit(limit).Offset(offset)
+	}
+
+	// 데이터 조회
+	err := query.
 		Preload("Owner").
 		Preload("Members", "status = ?", model.MemberStatusActive.String()).
 		Preload("Members.User").
 		Preload("Members.Role").
 		Preload("Members.Role.Permissions").
-		Order("workspaces.created_at DESC").
 		Find(&workspaces).Error
 
 	if err != nil {
@@ -218,14 +252,38 @@ func (h *WorkspaceHandler) GetMyWorkspaces(c *fiber.Ctx) error {
 		})
 	}
 
+	// 워크스페이스 ID 목록 추출
+	workspaceIDs := make([]int64, len(workspaces))
+	for i, ws := range workspaces {
+		workspaceIDs[i] = ws.ID
+	}
+
+	// 카테고리 매핑 조회
+	categoryMap := make(map[int64][]int64) // workspaceID -> []categoryID
+	if len(workspaceIDs) > 0 {
+		var mappings []model.WorkspaceCategoryMapping
+		h.db.Where("workspace_id IN ? AND user_id = ?", workspaceIDs, claims.UserID).Find(&mappings)
+		for _, m := range mappings {
+			categoryMap[m.WorkspaceID] = append(categoryMap[m.WorkspaceID], m.CategoryID)
+		}
+	}
+
 	responses := make([]WorkspaceResponse, len(workspaces))
 	for i, ws := range workspaces {
 		responses[i] = h.toWorkspaceResponse(&ws)
+		responses[i].CategoryIDs = categoryMap[ws.ID]
+	}
+
+	// has_more 계산
+	hasMore := false
+	if limit > 0 {
+		hasMore = int64(offset+len(workspaces)) < total
 	}
 
 	return c.JSON(fiber.Map{
 		"workspaces": responses,
-		"total":      len(responses),
+		"total":      total,
+		"has_more":   hasMore,
 	})
 }
 

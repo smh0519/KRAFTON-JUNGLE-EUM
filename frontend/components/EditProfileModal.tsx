@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import type { AuthResponse } from "../app/lib/api";
 import { apiClient } from "../app/lib/api";
+import { X, Camera, Loader2 } from "lucide-react";
 
 interface EditProfileModalProps {
     user: {
@@ -35,7 +36,7 @@ export default function EditProfileModal({
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 2 * 1024 * 1024) { // 2MB restriction
+            if (file.size > 2 * 1024 * 1024) {
                 setError("이미지 크기는 2MB 이하여야 합니다.");
                 return;
             }
@@ -77,95 +78,99 @@ export default function EditProfileModal({
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                 onClick={onClose}
             />
 
             {/* Modal */}
-            <div className="bg-white rounded-2xl w-full max-w-md p-8 relative z-10 shadow-2xl animate-in fade-in zoom-in duration-200">
-                <h2 className="text-2xl font-medium text-black mb-6">프로필 수정</h2>
+            <div className="bg-[#141414] rounded-2xl w-full max-w-md relative z-10 border border-white/[0.08] shadow-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+                    <h2 className="text-lg font-medium text-white">프로필 수정</h2>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/[0.06] text-white/40 hover:text-white/70 transition-colors"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Profile Image Preview */}
-                    <div className="flex flex-col items-center gap-2">
-                        <div
-                            className="relative w-24 h-24 cursor-pointer group"
-                            onClick={handleImageClick}
-                        >
-                            {previewImg ? (
-                                <img
-                                    src={previewImg}
-                                    alt="Preview"
-                                    className="w-full h-full rounded-full object-cover border-2 border-black/5 group-hover:opacity-70 transition-opacity"
-                                    onError={(e) => {
-                                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${nickname}&background=000&color=fff`;
-                                    }}
-                                />
-                            ) : (
-                                <div className="w-full h-full rounded-full bg-black flex items-center justify-center group-hover:opacity-70 transition-opacity">
-                                    <svg className="w-12 h-12 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                    </svg>
-                                </div>
-                            )}
-                            {/* Overlay Icon */}
-                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <div className="bg-black/50 rounded-full p-2">
-                                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
+                <form onSubmit={handleSubmit}>
+                    <div className="p-6 space-y-6">
+                        {/* Profile Image Preview */}
+                        <div className="flex flex-col items-center gap-3">
+                            <div
+                                className="relative w-24 h-24 cursor-pointer group"
+                                onClick={handleImageClick}
+                            >
+                                {previewImg ? (
+                                    <img
+                                        src={previewImg}
+                                        alt="Preview"
+                                        className="w-full h-full rounded-full object-cover ring-2 ring-white/10 group-hover:ring-white/20 transition-all"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${nickname}&background=1a1a1a&color=fff`;
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="w-full h-full rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/[0.15] transition-colors">
+                                        <span className="text-3xl font-medium text-white/50">
+                                            {nickname.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                )}
+                                {/* Overlay Icon */}
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Camera size={24} className="text-white/80" />
                                 </div>
                             </div>
+                            <p className="text-xs text-white/30">클릭하여 이미지 변경</p>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                accept="image/*"
+                                className="hidden"
+                            />
                         </div>
-                        <p className="text-xs text-black/40 pt-2">이미지를 클릭하여 변경</p>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            accept="image/*"
-                            className="hidden"
-                        />
-                    </div>
 
-                    <div className="space-y-4">
+                        {/* Nickname Input */}
                         <div>
-                            <label className="block text-sm font-medium text-black/70 mb-1">
+                            <label className="block text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
                                 닉네임
                             </label>
                             <input
                                 type="text"
                                 value={nickname}
                                 onChange={(e) => setNickname(e.target.value)}
-                                className="w-full px-4 py-3 bg-black/5 rounded-xl text-black placeholder:text-black/30 outline-none focus:ring-2 focus:ring-black/10 transition-all"
+                                className="w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-lg text-white placeholder:text-white/30 outline-none focus:border-white/20 transition-all"
                                 placeholder="닉네임을 입력하세요"
                             />
                         </div>
+
+                        {error && (
+                            <p className="text-sm text-red-400 text-center">{error}</p>
+                        )}
                     </div>
 
-                    {error && (
-                        <p className="text-sm text-red-500 text-center">{error}</p>
-                    )}
-
-                    <div className="flex gap-3 pt-2">
+                    {/* Footer */}
+                    <div className="flex gap-3 px-6 py-4 border-t border-white/[0.06]">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 py-3 px-4 rounded-xl text-black/70 hover:bg-black/5 transition-colors font-medium"
+                            className="flex-1 py-2.5 px-4 rounded-lg text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors font-medium text-sm"
                         >
                             취소
                         </button>
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="flex-1 py-3 px-4 rounded-xl bg-black text-white hover:bg-black/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="flex-1 py-2.5 px-4 rounded-lg bg-white text-[#0a0a0a] hover:bg-white/90 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                            {isLoading && (
-                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            )}
+                            {isLoading && <Loader2 size={14} className="animate-spin" />}
                             <span>저장</span>
                         </button>
                     </div>

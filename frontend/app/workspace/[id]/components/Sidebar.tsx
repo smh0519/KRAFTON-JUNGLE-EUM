@@ -5,6 +5,23 @@ import { useRouter } from "next/navigation";
 import { apiClient, ChatRoom, Workspace } from "../../../lib/api";
 import { useVoiceParticipantsWebSocket } from "../../../hooks/useVoiceParticipantsWebSocket";
 import { usePermission } from "../../../hooks/usePermission";
+import {
+  Users,
+  MessageSquare,
+  Video,
+  Calendar,
+  FolderOpen,
+  Settings,
+  ChevronRight,
+  ChevronsLeft,
+  Plus,
+  Hash,
+  Volume2,
+  Mic,
+  X,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 interface VoiceParticipant {
   identity: string;
@@ -343,49 +360,29 @@ export default function Sidebar({
     {
       id: "members",
       label: "멤버",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      ),
+      icon: <Users size={18} strokeWidth={1.5} />,
     },
     {
       id: "chat",
       label: "채팅",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      ),
-      dynamicChildren: true, // 채팅방은 동적으로 로드
+      icon: <MessageSquare size={18} strokeWidth={1.5} />,
+      dynamicChildren: true,
     },
     {
       id: "calls",
       label: "통화방",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-      ),
-      dynamicChildren: true, // 통화방도 동적으로 관리
+      icon: <Video size={18} strokeWidth={1.5} />,
+      dynamicChildren: true,
     },
     {
       id: "calendar",
       label: "캘린더",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      ),
+      icon: <Calendar size={18} strokeWidth={1.5} />,
     },
     {
       id: "storage",
       label: "저장소",
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-        </svg>
-      ),
+      icon: <FolderOpen size={18} strokeWidth={1.5} />,
     },
   ];
 
@@ -415,14 +412,10 @@ export default function Sidebar({
               className={`p-1.5 rounded-md hover:bg-black/5 transition-colors text-black/40 hover:text-black/70 ${isCollapsed ? "mx-auto" : ""
                 }`}
             >
-              <svg
-                className={`w-4 h-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
+              <ChevronsLeft
+                size={16}
+                className={`transition-transform ${isCollapsed ? "rotate-180" : ""}`}
+              />
             </button>
           </div>
 
@@ -451,15 +444,10 @@ export default function Sidebar({
                     <>
                       <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
                       {(item.children || item.dynamicChildren) && (
-                        <svg
-                          className={`w-4 h-4 transition-transform ${expandedItems.includes(item.id) ? "rotate-90" : ""
-                            }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        <ChevronRight
+                          size={14}
+                          className={`transition-transform ${expandedItems.includes(item.id) ? "rotate-90" : ""}`}
+                        />
                       )}
                     </>
                   )}
@@ -478,7 +466,7 @@ export default function Sidebar({
                           : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
                           }`}
                       >
-                        <span className="text-current opacity-50">#</span>
+                        <Hash size={14} className="opacity-50 flex-shrink-0" />
                         <span className="flex-1 text-left truncate">{room.title}</span>
                       </button>
                     ))}
@@ -488,9 +476,7 @@ export default function Sidebar({
                         onClick={() => setShowCreateChatModal(true)}
                         className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
+                        <Plus size={14} />
                         새 채팅방
                       </button>
                     )}
@@ -516,9 +502,7 @@ export default function Sidebar({
                                 : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
                               }`}
                           >
-                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.728-2.728" />
-                            </svg>
+                            <Volume2 size={16} className="flex-shrink-0" />
                             <span className="flex-1 text-left">{channel.label}</span>
                             {hasParticipants && (
                               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -549,10 +533,7 @@ export default function Sidebar({
                                       </div>
                                     )}
                                     <span className="truncate">{displayName}</span>
-                                    <svg className="w-3 h-3 text-green-500 flex-shrink-0 ml-auto" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                                      <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                                    </svg>
+                                    <Mic size={12} className="text-green-500 flex-shrink-0 ml-auto" />
                                   </div>
                                 );
                               })}
@@ -567,9 +548,7 @@ export default function Sidebar({
                         onClick={() => setShowCreateCallModal(true)}
                         className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
+                        <Plus size={14} />
                         새 통화방
                       </button>
                     )}
@@ -581,15 +560,12 @@ export default function Sidebar({
 
           {/* Footer */}
           {!isCollapsed && canManageRoles && (
-            <div className="p-3 border-t border-black/5">
+            <div className="p-3 border-t border-black/[0.06]">
               <button
                 onClick={() => router.push(`/workspace/${workspaceId}/settings`)}
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-black/40 hover:bg-black/[0.03] hover:text-black/60 transition-colors"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                <Settings size={18} strokeWidth={1.5} />
                 <span className="text-sm">설정</span>
               </button>
             </div>
@@ -611,18 +587,14 @@ export default function Sidebar({
                     onClick={() => openEditModal(contextMenu.room!)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-black/70 hover:bg-black/[0.04] hover:text-black"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    <Pencil size={14} />
                     이름 변경
                   </button>
                   <button
                     onClick={() => openDeleteModal(contextMenu.room!)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 size={14} />
                     삭제
                   </button>
                 </>
@@ -641,15 +613,13 @@ export default function Sidebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* 헤더 */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06]">
                   <h3 className="text-base font-semibold text-black">새 채팅방</h3>
                   <button
                     onClick={() => { setShowCreateChatModal(false); setNewChatRoomTitle(""); }}
-                    className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                    className="p-1 rounded-full hover:bg-black/5 transition-colors text-black/40"
                   >
-                    <svg className="w-5 h-5 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={18} />
                   </button>
                 </div>
 
@@ -699,15 +669,13 @@ export default function Sidebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* 헤더 */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06]">
                   <h3 className="text-base font-semibold text-black">채팅방 이름 변경</h3>
                   <button
                     onClick={() => { setShowEditModal(false); setEditingRoom(null); setEditRoomTitle(""); }}
-                    className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                    className="p-1 rounded-full hover:bg-black/5 transition-colors text-black/40"
                   >
-                    <svg className="w-5 h-5 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={18} />
                   </button>
                 </div>
 
@@ -757,15 +725,13 @@ export default function Sidebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* 헤더 */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06]">
                   <h3 className="text-base font-semibold text-black">채팅방 삭제</h3>
                   <button
                     onClick={() => { setShowDeleteModal(false); setDeletingRoom(null); }}
-                    className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                    className="p-1 rounded-full hover:bg-black/5 transition-colors text-black/40"
                   >
-                    <svg className="w-5 h-5 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={18} />
                   </button>
                 </div>
 
@@ -817,15 +783,13 @@ export default function Sidebar({
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* 헤더 */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.06]">
                   <h3 className="text-base font-semibold text-black">새 통화방</h3>
                   <button
                     onClick={() => { setShowCreateCallModal(false); setNewCallChannelName(""); }}
-                    className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                    className="p-1 rounded-full hover:bg-black/5 transition-colors text-black/40"
                   >
-                    <svg className="w-5 h-5 text-black/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    <X size={18} />
                   </button>
                 </div>
 

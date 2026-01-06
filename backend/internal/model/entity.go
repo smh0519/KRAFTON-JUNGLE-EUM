@@ -268,3 +268,39 @@ type WorkspaceFile struct {
 func (WorkspaceFile) TableName() string {
 	return "workspace_files"
 }
+
+// WorkspaceCategory 워크스페이스 카테고리 (사용자별)
+type WorkspaceCategory struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    int64     `gorm:"not null" json:"user_id"`
+	Name      string    `gorm:"type:varchar(100);not null" json:"name"`
+	Color     string    `gorm:"type:varchar(20);default:'#6366f1'" json:"color"`
+	SortOrder int       `gorm:"default:0" json:"sort_order"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+
+	// Relations
+	User     User                        `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Mappings []WorkspaceCategoryMapping `gorm:"foreignKey:CategoryID" json:"mappings,omitempty"`
+}
+
+func (WorkspaceCategory) TableName() string {
+	return "workspace_categories"
+}
+
+// WorkspaceCategoryMapping 워크스페이스-카테고리 매핑
+type WorkspaceCategoryMapping struct {
+	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	CategoryID  int64     `gorm:"not null" json:"category_id"`
+	WorkspaceID int64     `gorm:"not null" json:"workspace_id"`
+	UserID      int64     `gorm:"not null" json:"user_id"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+
+	// Relations
+	Category  WorkspaceCategory `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
+	Workspace Workspace         `gorm:"foreignKey:WorkspaceID" json:"workspace,omitempty"`
+	User      User              `gorm:"foreignKey:UserID" json:"user,omitempty"`
+}
+
+func (WorkspaceCategoryMapping) TableName() string {
+	return "workspace_category_mappings"
+}

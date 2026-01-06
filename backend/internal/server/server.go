@@ -35,6 +35,7 @@ type Server struct {
 	authHandler                *handler.AuthHandler
 	userHandler                *handler.UserHandler
 	workspaceHandler           *handler.WorkspaceHandler
+	categoryHandler            *handler.CategoryHandler
 	notificationHandler        *handler.NotificationHandler
 	notificationWSHandler      *handler.NotificationWSHandler
 	chatHandler                *handler.ChatHandler
@@ -88,6 +89,7 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 	authHandler := handler.NewAuthHandler(db, jwtManager, googleAuth, cfg.Auth.SecureCookie)
 	userHandler := handler.NewUserHandler(db, presenceManager)
 	workspaceHandler := handler.NewWorkspaceHandler(db)
+	categoryHandler := handler.NewCategoryHandler(db)
 	notificationHandler := handler.NewNotificationHandler(db)
 	notificationWSHandler := handler.NewNotificationWSHandler(db, presenceManager)
 	chatHandler := handler.NewChatHandler(db)
@@ -140,21 +142,22 @@ func New(cfg *config.Config, db *gorm.DB) *Server {
 	}
 
 	return &Server{
-		app:                        app,
-		cfg:                        cfg,
-		db:                         db,
-		handler:                    audioHandler,
-		authHandler:                authHandler,
-		userHandler:                userHandler,
-		workspaceHandler:           workspaceHandler,
-		notificationHandler:        notificationHandler,
-		notificationWSHandler:      notificationWSHandler,
-		chatHandler:                chatHandler,
-		chatWSHandler:              chatWSHandler,
-		meetingHandler:             meetingHandler,
-		calendarHandler:            calendarHandler,
-		storageHandler:             storageHandler,
-		roleHandler:                roleHandler,
+		app:                   app,
+		cfg:                   cfg,
+		db:                    db,
+		handler:               audioHandler,
+		authHandler:           authHandler,
+		userHandler:           userHandler,
+		workspaceHandler:      workspaceHandler,
+		categoryHandler:       categoryHandler,
+		notificationHandler:   notificationHandler,
+		notificationWSHandler: notificationWSHandler,
+		chatHandler:           chatHandler,
+		chatWSHandler:         chatWSHandler,
+		meetingHandler:        meetingHandler,
+		calendarHandler:       calendarHandler,
+		storageHandler:        storageHandler,
+		roleHandler:           roleHandler,
 		videoHandler:               videoHandler,
 		whiteboardHandler:          whiteboardHandler,
 		voiceRecordHandler:         voiceRecordHandler,
@@ -247,6 +250,15 @@ func (s *Server) SetupRoutes() {
 	notificationGroup.Post("/:id/accept", s.notificationHandler.AcceptInvitation)
 	notificationGroup.Post("/:id/decline", s.notificationHandler.DeclineInvitation)
 	notificationGroup.Post("/:id/read", s.notificationHandler.MarkAsRead)
+
+	// Workspace Category 라우트 그룹 (인증 필요)
+	categoryGroup := s.app.Group("/api/workspace-categories", auth.AuthMiddleware(s.jwtManager))
+	categoryGroup.Get("", s.categoryHandler.GetMyCategories)
+	categoryGroup.Post("", s.categoryHandler.CreateCategory)
+	categoryGroup.Put("/:categoryId", s.categoryHandler.UpdateCategory)
+	categoryGroup.Delete("/:categoryId", s.categoryHandler.DeleteCategory)
+	categoryGroup.Post("/:categoryId/workspaces/:workspaceId", s.categoryHandler.AddWorkspaceToCategory)
+	categoryGroup.Delete("/:categoryId/workspaces/:workspaceId", s.categoryHandler.RemoveWorkspaceFromCategory)
 
 	// Workspace 라우트 그룹 (인증 필요)
 	workspaceGroup := s.app.Group("/api/workspaces", auth.AuthMiddleware(s.jwtManager))

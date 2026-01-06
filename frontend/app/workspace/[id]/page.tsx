@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
 import { usePresence } from "../../contexts/presence-context";
@@ -17,6 +17,7 @@ import StatusIndicator from "../../../components/StatusIndicator";
 import GlobalUserProfileMenu from "../../../components/GlobalUserProfileMenu";
 import { useVoiceParticipantsWebSocket, VoiceParticipant } from "../../hooks/useVoiceParticipantsWebSocket";
 import { usePermission } from "../../hooks/usePermission";
+import { ChevronLeft, Hash, MessageSquare, Users, Calendar, FolderOpen, Phone } from "lucide-react";
 
 export default function WorkspaceDetailPage() {
   const router = useRouter();
@@ -293,6 +294,29 @@ export default function WorkspaceDetailPage() {
     }
   };
 
+  // Get section title and icon for breadcrumb
+  const getSectionInfo = () => {
+    if (activeSection.startsWith("chat-") && currentChatRoomTitle) {
+      return { icon: <Hash size={16} />, title: currentChatRoomTitle };
+    }
+    if (activeSection.startsWith("call-")) {
+      return { icon: <Phone size={16} />, title: "통화" };
+    }
+    if (activeSection.startsWith("dm-")) {
+      return { icon: <MessageSquare size={16} />, title: "다이렉트 메시지" };
+    }
+    
+    const sections: Record<string, { icon: React.ReactNode; title: string }> = {
+      members: { icon: <Users size={16} />, title: "멤버" },
+      chat: { icon: <MessageSquare size={16} />, title: "채팅" },
+      calls: { icon: <Phone size={16} />, title: "통화" },
+      calendar: { icon: <Calendar size={16} />, title: "캘린더" },
+      storage: { icon: <FolderOpen size={16} />, title: "저장소" },
+    };
+    return sections[activeSection] || { icon: <Users size={16} />, title: "멤버" };
+  };
+
+  const sectionInfo = getSectionInfo();
   // 통화 중이면서 해당 채널을 보고 있는지 확인
   const isJoinedCallView = activeSection.startsWith("call-") &&
     activeCall?.channelId === activeSection;
@@ -315,82 +339,79 @@ export default function WorkspaceDetailPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar - Hide only when joined in the active call view */}
-        {!isJoinedCallView && (
-          <header className="h-14 border-b border-black/5 flex items-center justify-between px-6">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push("/workspace")}
-                className="flex items-center gap-1.5 text-sm text-black/50 hover:text-black transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                워크스페이스
-              </button>
-              {activeSection.startsWith("chat-") && currentChatRoomTitle && (
-                <>
-                  <span className="text-black/20">/</span>
-                  <span className="text-sm font-medium text-black"># {currentChatRoomTitle}</span>
-                </>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
-
-              {/* Profile */}
-              <div className="relative">
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          {/* Notion-style Top Bar */}
+          {!isJoinedCallView && (
+            <header className="h-11 border-b border-black/[0.06] flex items-center justify-between px-4 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+              {/* Left: Breadcrumb */}
+              <div className="flex items-center gap-1 text-sm">
                 <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                  onClick={() => router.push("/workspace")}
+                  className="flex items-center gap-1 px-1.5 py-1 rounded text-black/40 hover:text-black/70 hover:bg-black/[0.04] transition-all"
                 >
-                  <div className="relative">
-                    {user.profileImg ? (
-                      <img
-                        src={user.profileImg}
-                        alt={user.nickname}
-                        className="w-8 h-8 rounded-full object-cover hover:ring-2 hover:ring-black/10 transition-all"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center hover:ring-2 hover:ring-black/20 transition-all">
-                        <span className="text-xs font-medium text-white">
-                          {user.nickname.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                    {/* Status Dot */}
-                    <StatusIndicator
-                      status={presenceMap[user.id]?.status || user.default_status || "online"}
-                      size="sm"
-                      className="absolute bottom-0 right-0 border-white"
-                    />
-                  </div>
+                  <ChevronLeft size={14} />
+                  <span className="text-xs">워크스페이스</span>
                 </button>
 
-                {/* Global Profile Menu */}
-                {showProfileMenu && (
-                  <GlobalUserProfileMenu
-                    onClose={() => setShowProfileMenu(false)}
-                    onEditProfile={() => {
-                      setShowProfileMenu(false);
-                      setIsEditProfileModalOpen(true);
-                    }}
-                    onLogout={handleLogout}
-                  />
-                )}
+                <span className="text-black/20">/</span>
+
+                <div className="flex items-center gap-1.5 px-1.5 py-1 text-black/70">
+                  <span className="text-black/40">{sectionInfo.icon}</span>
+                  <span className="font-medium">{sectionInfo.title}</span>
+                </div>
               </div>
-            </div>
-          </header>
-        )}
 
+              {/* Right: Actions */}
+              <div className="flex items-center gap-2">
+                <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
 
+                {/* Profile */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                    className="flex items-center gap-2 p-1 rounded-md hover:bg-black/[0.04] transition-all"
+                  >
+                    <div className="relative">
+                      {user.profileImg ? (
+                        <img
+                          src={user.profileImg}
+                          alt={user.nickname}
+                          className="w-7 h-7 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-black/10 flex items-center justify-center">
+                          <span className="text-xs font-medium text-black/60">
+                            {user.nickname.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <StatusIndicator
+                        status={presenceMap[user.id]?.status || user.default_status || "online"}
+                        size="sm"
+                        className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white"
+                      />
+                    </div>
+                  </button>
+
+                  {showProfileMenu && (
+                    <GlobalUserProfileMenu
+                      onClose={() => setShowProfileMenu(false)}
+                      onEditProfile={() => {
+                        setShowProfileMenu(false);
+                        setIsEditProfileModalOpen(true);
+                      }}
+                      onLogout={handleLogout}
+                    />
+                  )}
+                </div>
+              </div>
+            </header>
+          )}
         {/* Content Area */}
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-hidden bg-stone-50/50">
           {renderContent()}
         </main>
-      </div >
+      </div>
 
       {/* Edit Profile Modal */}
       {
