@@ -17,6 +17,7 @@ interface ParticipantVideoTileProps {
     nickname: string;
     profileImg?: string;
   };
+  onClick?: () => void;
 }
 
 export default function ParticipantVideoTile({
@@ -28,10 +29,11 @@ export default function ParticipantVideoTile({
   aspectRatio = 'video',
   size = 'md',
   currentUser,
+  onClick,
 }: ParticipantVideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const isSpeaking = useIsSpeaking(participant);
-  
+
   // Parse metadata for profile image
   let profileImg: string | undefined;
   try {
@@ -46,7 +48,7 @@ export default function ParticipantVideoTile({
     profileImg = currentUser.profileImg;
   }
 
-  const displayName = isLocal 
+  const displayName = isLocal
     ? (currentUser?.nickname || participant.name || '나')
     : (participant.name || participant.identity);
 
@@ -80,16 +82,18 @@ export default function ParticipantVideoTile({
   };
 
   return (
-    <div 
+    <div
       className={`
         relative overflow-hidden rounded-lg border bg-stone-50
         transition-all duration-200 ease-out
-        ${isSpeaking 
-          ? 'border-black/20 ring-1 ring-black/10' 
+        ${isSpeaking
+          ? 'border-black/20 ring-1 ring-black/10'
           : 'border-black/[0.06]'
         }
         ${aspectRatio === 'video' ? 'aspect-video' : 'aspect-square'}
+        ${onClick ? 'cursor-pointer hover:ring-2 hover:ring-blue-500/50' : ''}
       `}
+      onClick={onClick}
     >
       {/* Video or Avatar */}
       {!isCameraOff ? (
