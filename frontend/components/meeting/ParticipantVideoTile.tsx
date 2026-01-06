@@ -2,8 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 import { Track, Participant } from 'livekit-client';
-import { useIsSpeaking } from '@livekit/components-react';
+import { useIsSpeaking, VideoTrack as LiveKitVideoTrack } from '@livekit/components-react';
 import { MicOff, VideoOff } from 'lucide-react';
+import { TrackReferenceOrPlaceholder } from '@livekit/components-core'; // Might need this type if we pass track ref
 
 interface ParticipantVideoTileProps {
   participant: Participant;
@@ -55,19 +56,8 @@ export default function ParticipantVideoTile({
   const isMuted = !audioTrack;
   const isCameraOff = !videoTrack;
 
-  // Attach video track to video element
-  useEffect(() => {
-    if (!videoRef.current || !videoTrack) return;
-
-    const mediaStream = new MediaStream([videoTrack]);
-    videoRef.current.srcObject = mediaStream;
-
-    return () => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [videoTrack]);
+  // No manual video attachment needed with LiveKitVideoTrack
+  // useEffect removed
 
   const sizeClasses = {
     sm: 'text-xs',
@@ -96,12 +86,13 @@ export default function ParticipantVideoTile({
       onClick={onClick}
     >
       {/* Video or Avatar */}
-      {!isCameraOff ? (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isLocal}
+      {!isCameraOff && videoTrack ? (
+        <LiveKitVideoTrack
+          trackRef={{
+            participant,
+            source: Track.Source.Camera,
+            publication: participant.getTrackPublication(Track.Source.Camera)
+          }}
           className={`w-full h-full object-cover ${isLocal ? 'scale-x-[-1]' : ''}`}
         />
       ) : (
