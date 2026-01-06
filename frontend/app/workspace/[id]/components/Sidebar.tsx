@@ -389,27 +389,27 @@ export default function Sidebar({
   return (
     <>
       <div
-        className={`h-screen bg-stone-50 border-r border-black/5 flex flex-col transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"
+        className={`h-screen bg-[#141414] border-r border-white/5 flex flex-col transition-all duration-300 ${isCollapsed ? "w-16" : "w-64"
           }`}
       >
         <div className="flex-1 flex flex-col h-full overflow-hidden">
           {/* Header */}
-          <div className="h-14 flex items-center justify-between px-4 border-b border-black/5">
+          <div className="h-14 flex items-center justify-between px-4 border-b border-white/5">
             {!isCollapsed && (
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
                   <span className="text-xs font-bold text-white">
                     {workspaceName.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <span className="font-medium text-sm text-black truncate">
+                <span className="font-medium text-sm text-white truncate">
                   {workspaceName}
                 </span>
               </div>
             )}
             <button
               onClick={onToggleCollapse}
-              className={`p-1.5 rounded-md hover:bg-black/5 transition-colors text-black/40 hover:text-black/70 ${isCollapsed ? "mx-auto" : ""
+              className={`p-1.5 rounded-md hover:bg-white/5 transition-colors text-white/40 hover:text-white/70 ${isCollapsed ? "mx-auto" : ""
                 }`}
             >
               <ChevronsLeft
@@ -434,8 +434,8 @@ export default function Sidebar({
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all mb-0.5 ${activeSection === item.id ||
                     (item.children && activeSection.startsWith("call-")) ||
                     (item.dynamicChildren && activeSection.startsWith("chat-"))
-                    ? "bg-black/5 text-black"
-                    : "text-black/60 hover:bg-black/[0.03] hover:text-black"
+                    ? "bg-white/10 text-white"
+                    : "text-white/60 hover:bg-white/[0.05] hover:text-white"
                     } ${isCollapsed ? "justify-center" : ""}`}
                   title={isCollapsed ? item.label : undefined}
                 >
@@ -455,15 +455,15 @@ export default function Sidebar({
 
                 {/* Dynamic Children - 채팅방 */}
                 {item.id === "chat" && item.dynamicChildren && expandedItems.includes(item.id) && !isCollapsed && (
-                  <div className="ml-4 pl-4 border-l border-black/10 mt-1 mb-2">
+                  <div className="ml-4 pl-4 border-l border-white/10 mt-1 mb-2">
                     {chatRooms.map((room) => (
                       <button
                         key={room.id}
                         onClick={() => onSectionChange(`chat-${room.id}`)}
                         onContextMenu={(e) => handleContextMenu(e, room)}
                         className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm group ${activeSection === `chat-${room.id}`
-                          ? "bg-black/5 text-black font-medium"
-                          : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
+                          ? "bg-white/10 text-white font-medium"
+                          : "text-white/50 hover:bg-white/[0.05] hover:text-white/70"
                           }`}
                       >
                         <Hash size={14} className="opacity-50 flex-shrink-0" />
@@ -474,7 +474,7 @@ export default function Sidebar({
                     {canManageChannels && (
                       <button
                         onClick={() => setShowCreateChatModal(true)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-white/40 hover:bg-white/[0.05] hover:text-white/60"
                       >
                         <Plus size={14} />
                         새 채팅방
@@ -485,7 +485,7 @@ export default function Sidebar({
 
                 {/* Dynamic Children - 통화방 (디스코드 스타일) */}
                 {item.id === "calls" && item.dynamicChildren && expandedItems.includes(item.id) && !isCollapsed && (
-                  <div className="ml-4 pl-4 border-l border-black/10 mt-1 mb-2">
+                  <div className="ml-4 pl-4 border-l border-white/10 mt-1 mb-2">
                     {callChannels.map((channel) => {
                       const roomName = `channel-${channel.id}`;
                       const channelParticipants = voiceParticipants[roomName] || [];
@@ -496,10 +496,10 @@ export default function Sidebar({
                           <button
                             onClick={() => handleCallChannelClick(channel.id, channel.label)}
                             className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm group ${hasParticipants
-                              ? "bg-green-500/10 text-green-600 font-medium"
+                              ? "bg-green-500/10 text-green-500 font-medium"
                               : activeSection === channel.id
-                                ? "bg-black/5 text-black font-medium"
-                                : "text-black/50 hover:bg-black/[0.03] hover:text-black/70"
+                                ? "bg-white/10 text-white font-medium"
+                                : "text-white/50 hover:bg-white/[0.05] hover:text-white/70"
                               }`}
                           >
                             <Volume2 size={16} className="flex-shrink-0" />
@@ -517,7 +517,7 @@ export default function Sidebar({
                                 return (
                                   <div
                                     key={participant.identity}
-                                    className="flex items-center gap-2 px-2 py-1 rounded text-xs text-black/60"
+                                    className="flex items-center gap-2 px-2 py-1 rounded text-xs text-white/60"
                                   >
                                     {profileImg ? (
                                       <img
@@ -527,7 +527,7 @@ export default function Sidebar({
                                       />
                                     ) : (
                                       <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                                        <span className="text-[10px] font-medium text-green-600">
+                                        <span className="text-[10px] font-medium text-green-500">
                                           {displayName.charAt(0).toUpperCase()}
                                         </span>
                                       </div>
@@ -546,7 +546,7 @@ export default function Sidebar({
                     {canManageChannels && (
                       <button
                         onClick={() => setShowCreateCallModal(true)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-black/40 hover:bg-black/[0.03] hover:text-black/60"
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md transition-all text-sm text-white/40 hover:bg-white/[0.05] hover:text-white/60"
                       >
                         <Plus size={14} />
                         새 통화방
@@ -560,10 +560,10 @@ export default function Sidebar({
 
           {/* Footer */}
           {!isCollapsed && canManageRoles && (
-            <div className="p-3 border-t border-black/[0.06]">
+            <div className="p-3 border-t border-white/[0.06]">
               <button
                 onClick={() => router.push(`/workspace/${workspaceId}/settings`)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-black/40 hover:bg-black/[0.03] hover:text-black/60 transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/40 hover:bg-white/[0.05] hover:text-white/60 transition-colors"
               >
                 <Settings size={18} strokeWidth={1.5} />
                 <span className="text-sm">설정</span>

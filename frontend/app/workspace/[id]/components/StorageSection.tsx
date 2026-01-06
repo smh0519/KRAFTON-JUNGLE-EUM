@@ -162,7 +162,7 @@ export default function StorageSection({ workspaceId }: StorageSectionProps) {
 
   return (
     <div
-      className="h-full flex flex-col relative bg-white"
+      className="h-full flex flex-col relative bg-[#1f1f1f]"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

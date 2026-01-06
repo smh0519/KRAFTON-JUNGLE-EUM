@@ -404,25 +404,25 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
   const isMyMessage = (msg: ChatMessage) => msg.sender_id === user?.id;
 
   return (
-    <div className="h-full flex flex-col bg-white overflow-hidden relative">
+    <div className="h-full flex flex-col bg-[#1f1f1f] overflow-hidden relative">
       {/* Header with Back Button */}
-      <div className="h-16 px-6 flex items-center border-b border-black/5 bg-white flex-shrink-0 gap-3 z-10">
+      <div className="h-16 px-6 flex items-center border-b border-white/5 bg-[#1f1f1f] flex-shrink-0 gap-3 z-10">
         {onBack && (
           <button
             onClick={onBack}
-            className="p-2 -ml-2 rounded-full hover:bg-black/5 text-black/40 hover:text-black transition-colors"
+            className="p-2 -ml-2 rounded-full hover:bg-white/5 text-white/40 hover:text-white transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
         )}
-        <h2 className="font-semibold text-lg text-black">{roomTitle || "채팅"}</h2>
+        <h2 className="font-semibold text-lg text-white">{roomTitle || "채팅"}</h2>
       </div>
       {/* 최신 메시지로 이동 버튼 */}
       <button
         onClick={() => scrollToBottom("smooth")}
-        className={`absolute bottom-24 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 bg-white text-blue-600 text-sm font-medium rounded-full shadow-lg border border-blue-200 transition-all duration-300 ease-out hover:bg-blue-50 hover:border-blue-300 hover:scale-105 ${showScrollButton
+        className={`absolute bottom-24 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 bg-[#2a2a2a] text-white text-sm font-medium rounded-full shadow-lg border border-white/10 transition-all duration-300 ease-out hover:bg-[#333] hover:scale-105 ${showScrollButton
           ? "opacity-100 translate-y-0"
           : "opacity-0 translate-y-4 pointer-events-none"
           }`}
@@ -441,10 +441,10 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
       >
         {isLoadingMessages ? (
           <div className="h-full flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
           </div>
         ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-black/40">
+          <div className="h-full flex flex-col items-center justify-center text-white/40">
             <svg className="w-12 h-12 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
@@ -455,14 +455,14 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
             {/* 더 로드 중 표시 */}
             {isLoadingMore && (
               <div className="flex justify-center py-2">
-                <div className="w-5 h-5 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
               </div>
             )}
 
             {/* 더 이상 메시지 없음 표시 */}
             {!hasMore && messages.length > 0 && (
               <div className="flex justify-center py-2">
-                <span className="text-xs text-black/30">채팅방의 시작입니다</span>
+                <span className="text-xs text-white/30">채팅방의 시작입니다</span>
               </div>
             )}
 
@@ -482,23 +482,23 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
                             msg.sender?.profile_img ? (
                               <img src={msg.sender.profile_img} alt={msg.sender.nickname} className="w-8 h-8 rounded-full object-cover" />
                             ) : (
-                              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                                <span className="text-xs font-medium text-gray-500">{msg.sender?.nickname?.charAt(0) || "?"}</span>
+                              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                                <span className="text-xs font-medium text-white/60">{msg.sender?.nickname?.charAt(0) || "?"}</span>
                               </div>
                             )
                           )}
                         </div>
                         <div className="flex flex-col items-start">
                           {showName && (
-                            <span className="text-xs text-black/50 mb-1 ml-1">{msg.sender?.nickname || "알 수 없음"}</span>
+                            <span className="text-xs text-white/50 mb-1 ml-1">{msg.sender?.nickname || "알 수 없음"}</span>
                           )}
                           <div
-                            className="px-4 py-2 bg-gray-100 text-black"
+                            className="px-4 py-2 bg-white/10 text-white"
                             style={{ borderRadius: "20px 20px 20px 4px" }}
                           >
                             <p className="text-sm leading-relaxed whitespace-pre-wrap break-all">{msg.message}</p>
                           </div>
-                          <span className="text-[10px] text-black/30 mt-0.5 mx-1">{formatTime(msg.created_at)}</span>
+                          <span className="text-[10px] text-white/30 mt-0.5 mx-1">{formatTime(msg.created_at)}</span>
                         </div>
                       </div>
                     )}
@@ -512,12 +512,12 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
                     {isMe && (
                       <div className="flex flex-col items-end">
                         <div
-                          className="px-4 py-2 bg-black text-white"
+                          className="px-4 py-2 bg-white text-black"
                           style={{ borderRadius: "20px 20px 4px 20px" }}
                         >
                           <p className="text-sm leading-relaxed whitespace-pre-wrap break-all">{msg.message}</p>
                         </div>
-                        <span className="text-[10px] text-black/30 mt-0.5 mx-1">{formatTime(msg.created_at)}</span>
+                        <span className="text-[10px] text-white/30 mt-0.5 mx-1">{formatTime(msg.created_at)}</span>
                       </div>
                     )}
                   </div>
@@ -531,22 +531,22 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
                 <div className="w-[45%] flex justify-start">
                   <div className="flex gap-2">
                     <div className="w-8 flex-shrink-0 mt-5">
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                        <span className="text-xs font-medium text-gray-500">{typingUsers[0]?.nickname?.charAt(0) || "?"}</span>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                        <span className="text-xs font-medium text-white/60">{typingUsers[0]?.nickname?.charAt(0) || "?"}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-start">
-                      <span className="text-xs text-black/50 mb-1 ml-1">
+                      <span className="text-xs text-white/50 mb-1 ml-1">
                         {typingUsers.map((u) => u.nickname).join(", ")}
                       </span>
                       <div
-                        className="px-4 py-3 bg-gray-100"
+                        className="px-4 py-3 bg-white/10"
                         style={{ borderRadius: "20px 20px 20px 4px" }}
                       >
                         <div className="flex items-center gap-1">
-                          <span className="w-2 h-2 bg-black/40 rounded-full animate-[bounce_1s_ease-in-out_infinite]" />
-                          <span className="w-2 h-2 bg-black/40 rounded-full animate-[bounce_1s_ease-in-out_infinite_150ms]" style={{ animationDelay: "150ms" }} />
-                          <span className="w-2 h-2 bg-black/40 rounded-full animate-[bounce_1s_ease-in-out_infinite_300ms]" style={{ animationDelay: "300ms" }} />
+                          <span className="w-2 h-2 bg-white/40 rounded-full animate-[bounce_1s_ease-in-out_infinite]" />
+                          <span className="w-2 h-2 bg-white/40 rounded-full animate-[bounce_1s_ease-in-out_infinite_150ms]" style={{ animationDelay: "150ms" }} />
+                          <span className="w-2 h-2 bg-white/40 rounded-full animate-[bounce_1s_ease-in-out_infinite_300ms]" style={{ animationDelay: "300ms" }} />
                         </div>
                       </div>
                     </div>
@@ -564,8 +564,8 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
       </div>
 
       {/* 입력 영역 */}
-      <div className="px-4 py-3 border-t border-black/5">
-        <div className="flex items-center gap-3 bg-gray-100 rounded-full px-4 py-2 focus-within:ring-2 focus-within:ring-black/10 transition-all">
+      <div className="px-4 py-3 border-t border-white/5">
+        <div className="flex items-center gap-3 bg-white/5 rounded-full px-4 py-2 focus-within:ring-2 focus-within:ring-white/10 transition-all">
           <textarea
             value={message}
             onChange={handleInputChange}
@@ -575,12 +575,12 @@ export default function ChatSection({ workspaceId, roomId, onRoomTitleChange, on
             placeholder={canSendMessages ? "메시지 입력..." : "메시지 전송 권한이 없습니다"}
             rows={1}
             disabled={!canSendMessages}
-            className="flex-1 bg-transparent resize-none text-sm text-black placeholder:text-black/40 focus:outline-none py-1.5 max-h-24 disabled:cursor-not-allowed"
+            className="flex-1 bg-transparent resize-none text-sm text-white placeholder:text-white/40 focus:outline-none py-1.5 max-h-24 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSend}
             disabled={!message.trim() || !canSendMessages}
-            className={`p-2 rounded-full transition-all ${message.trim() && canSendMessages ? "bg-black text-white hover:bg-black/80" : "bg-black/10 text-black/30"
+            className={`p-2 rounded-full transition-all ${message.trim() && canSendMessages ? "bg-white text-black hover:bg-white/90" : "bg-white/10 text-white/30"
               }`}
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">

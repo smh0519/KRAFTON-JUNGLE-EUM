@@ -55,17 +55,16 @@ function FileGridItem({
 
   return (
     <div
-      className={`group relative rounded-xl border cursor-pointer transition-all ${
-        isSelected
-          ? "border-gray-300 bg-gray-50 shadow-sm"
-          : "border-gray-100 hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm"
-      }`}
+      className={`group relative rounded-xl border cursor-pointer transition-all ${isSelected
+          ? "border-white/30 bg-white/10 shadow-sm"
+          : "border-white/5 hover:border-white/10 hover:bg-white/5 hover:shadow-sm"
+        }`}
       onClick={() => onFileClick(file)}
     >
       {/* Thumbnail */}
-      <div className="aspect-square bg-gray-50 rounded-t-xl flex items-center justify-center overflow-hidden relative">
+      <div className="aspect-square bg-white/5 rounded-t-xl flex items-center justify-center overflow-hidden relative">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/5">
             <img
               src="/logo_black.png"
               alt=""
@@ -108,7 +107,7 @@ function FileGridItem({
       </div>
       {/* Info */}
       <div className="p-2.5">
-        <p className="text-sm text-gray-900 truncate">{file.name}</p>
+        <p className="text-sm text-white truncate">{file.name}</p>
         <div className="flex items-center gap-1.5 mt-1">
           {file.uploader && (
             <>
@@ -119,15 +118,15 @@ function FileGridItem({
                   className="w-4 h-4 rounded-full object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[8px] font-medium text-gray-500">
+                <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[8px] font-medium text-white/70">
                     {file.uploader.nickname?.charAt(0)}
                   </span>
                 </div>
               )}
             </>
           )}
-          <span className="text-xs text-gray-400 truncate">
+          <span className="text-xs text-white/30 truncate">
             {file.uploader?.nickname && `${file.uploader.nickname} · `}
             {formatDate(file.created_at)}
           </span>
@@ -137,7 +136,7 @@ function FileGridItem({
       <div className="absolute top-2 right-2 hidden group-hover:flex gap-0.5">
         <button
           onClick={(e) => { e.stopPropagation(); onRename(file); }}
-          className="p-1.5 rounded-lg bg-white/90 backdrop-blur text-gray-500 hover:text-gray-700 shadow-sm"
+          className="p-1.5 rounded-lg bg-[#333]/90 backdrop-blur text-white/50 hover:text-white shadow-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -145,7 +144,7 @@ function FileGridItem({
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(file); }}
-          className="p-1.5 rounded-lg bg-white/90 backdrop-blur text-gray-500 hover:text-red-500 shadow-sm"
+          className="p-1.5 rounded-lg bg-[#333]/90 backdrop-blur text-white/50 hover:text-red-500 shadow-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

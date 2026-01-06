@@ -165,13 +165,13 @@ export default function WorkspaceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#1a1a1a] gap-4">
         <img
-          src="/kor_eum_black.png"
+          src="/logo_white.png"
           alt="Loading"
-          className="w-12 h-12 animate-pulse"
+          className="w-12 h-12 animate-pulse opacity-50"
         />
-        <p className="text-black/50 text-sm">Workspace Detail Auth Loading...</p>
+        <p className="text-white/40 text-sm">Workspace Detail Auth Loading...</p>
       </div>
     );
   }
@@ -184,24 +184,24 @@ export default function WorkspaceDetailPage() {
   // 인증은 되었으나 워크스페이스 로딩 중
   if (isLoadingWorkspace) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#1a1a1a] gap-4">
         <img
-          src="/kor_eum_black.png"
+          src="/logo_white.png"
           alt="Loading"
-          className="w-12 h-12 animate-pulse"
+          className="w-12 h-12 animate-pulse opacity-50"
         />
-        <p className="text-black/50 text-sm">Workspace Detail Data Loading...</p>
+        <p className="text-white/40 text-sm">Workspace Detail Data Loading...</p>
       </div>
     );
   }
 
   if (error || !workspace) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
-        <p className="text-black/50">{error || "워크스페이스를 찾을 수 없습니다."}</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#1a1a1a] gap-4">
+        <p className="text-white/50">{error || "워크스페이스를 찾을 수 없습니다."}</p>
         <button
           onClick={() => router.push("/workspace")}
-          className="text-sm text-black/70 hover:text-black underline"
+          className="text-sm text-white/70 hover:text-white underline"
         >
           워크스페이스 목록으로 돌아가기
         </button>
@@ -270,7 +270,7 @@ export default function WorkspaceDetailPage() {
       case "chat":
         // 기본 채팅 섹션 - 채팅방을 선택하라는 메시지 표시
         return (
-          <div className="h-full flex flex-col items-center justify-center text-black/40">
+          <div className="h-full flex flex-col items-center justify-center text-white/40">
             <svg className="w-16 h-16 mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
@@ -305,7 +305,7 @@ export default function WorkspaceDetailPage() {
     if (activeSection.startsWith("dm-")) {
       return { icon: <MessageSquare size={16} />, title: "다이렉트 메시지" };
     }
-    
+
     const sections: Record<string, { icon: React.ReactNode; title: string }> = {
       members: { icon: <Users size={16} />, title: "멤버" },
       chat: { icon: <MessageSquare size={16} />, title: "채팅" },
@@ -322,7 +322,7 @@ export default function WorkspaceDetailPage() {
     activeCall?.channelId === activeSection;
 
   return (
-    <div className="h-screen bg-white flex overflow-hidden">
+    <div className="h-screen bg-[#1a1a1a] flex overflow-hidden">
       {/* Sidebar - Hide only when joined in the active call view */}
       {!isJoinedCallView && (
         <Sidebar
@@ -339,76 +339,76 @@ export default function WorkspaceDetailPage() {
       )}
 
       {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-white">
-          {/* Notion-style Top Bar */}
-          {!isJoinedCallView && (
-            <header className="h-11 border-b border-black/[0.06] flex items-center justify-between px-4 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-              {/* Left: Breadcrumb */}
-              <div className="flex items-center gap-1 text-sm">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#1a1a1a]">
+        {/* Notion-style Top Bar */}
+        {!isJoinedCallView && (
+          <header className="h-11 border-b border-white/[0.06] flex items-center justify-between px-4 bg-[#1a1a1a]/80 backdrop-blur-sm sticky top-0 z-10">
+            {/* Left: Breadcrumb */}
+            <div className="flex items-center gap-1 text-sm">
+              <button
+                onClick={() => router.push("/workspace")}
+                className="flex items-center gap-1 px-1.5 py-1 rounded text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all"
+              >
+                <ChevronLeft size={14} />
+                <span className="text-xs">워크스페이스</span>
+              </button>
+
+              <span className="text-white/20">/</span>
+
+              <div className="flex items-center gap-1.5 px-1.5 py-1 text-white/70">
+                <span className="text-white/40">{sectionInfo.icon}</span>
+                <span className="font-medium">{sectionInfo.title}</span>
+              </div>
+            </div>
+
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
+
+              {/* Profile */}
+              <div className="relative">
                 <button
-                  onClick={() => router.push("/workspace")}
-                  className="flex items-center gap-1 px-1.5 py-1 rounded text-black/40 hover:text-black/70 hover:bg-black/[0.04] transition-all"
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="flex items-center gap-2 p-1 rounded-md hover:bg-white/[0.04] transition-all"
                 >
-                  <ChevronLeft size={14} />
-                  <span className="text-xs">워크스페이스</span>
+                  <div className="relative">
+                    {user.profileImg ? (
+                      <img
+                        src={user.profileImg}
+                        alt={user.nickname}
+                        className="w-7 h-7 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
+                        <span className="text-xs font-medium text-white/60">
+                          {user.nickname.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <StatusIndicator
+                      status={presenceMap[user.id]?.status || user.default_status || "online"}
+                      size="sm"
+                      className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white"
+                    />
+                  </div>
                 </button>
 
-                <span className="text-black/20">/</span>
-
-                <div className="flex items-center gap-1.5 px-1.5 py-1 text-black/70">
-                  <span className="text-black/40">{sectionInfo.icon}</span>
-                  <span className="font-medium">{sectionInfo.title}</span>
-                </div>
+                {showProfileMenu && (
+                  <GlobalUserProfileMenu
+                    onClose={() => setShowProfileMenu(false)}
+                    onEditProfile={() => {
+                      setShowProfileMenu(false);
+                      setIsEditProfileModalOpen(true);
+                    }}
+                    onLogout={handleLogout}
+                  />
+                )}
               </div>
-
-              {/* Right: Actions */}
-              <div className="flex items-center gap-2">
-                <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
-
-                {/* Profile */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center gap-2 p-1 rounded-md hover:bg-black/[0.04] transition-all"
-                  >
-                    <div className="relative">
-                      {user.profileImg ? (
-                        <img
-                          src={user.profileImg}
-                          alt={user.nickname}
-                          className="w-7 h-7 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-black/10 flex items-center justify-center">
-                          <span className="text-xs font-medium text-black/60">
-                            {user.nickname.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                      <StatusIndicator
-                        status={presenceMap[user.id]?.status || user.default_status || "online"}
-                        size="sm"
-                        className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white"
-                      />
-                    </div>
-                  </button>
-
-                  {showProfileMenu && (
-                    <GlobalUserProfileMenu
-                      onClose={() => setShowProfileMenu(false)}
-                      onEditProfile={() => {
-                        setShowProfileMenu(false);
-                        setIsEditProfileModalOpen(true);
-                      }}
-                      onLogout={handleLogout}
-                    />
-                  )}
-                </div>
-              </div>
-            </header>
-          )}
+            </div>
+          </header>
+        )}
         {/* Content Area */}
-        <main className="flex-1 overflow-hidden bg-stone-50/50">
+        <main className="flex-1 overflow-hidden bg-[#1a1a1a]">
           {renderContent()}
         </main>
       </div>

@@ -26,7 +26,7 @@ export function LeftPanel({
 
       {/* Top */}
       <div className="relative z-10">
-        <img src="/eum_white.png" alt="EUM" className="h-5" />
+        <img src="/logo_white.png" alt="EUM" className="h-5" />
       </div>
 
       {/* Center - Typography */}

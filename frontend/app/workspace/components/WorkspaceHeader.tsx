@@ -32,7 +32,7 @@ export function WorkspaceHeader({
 }: WorkspaceHeaderProps) {
   return (
     <header className="flex items-center justify-between px-6 lg:px-10 h-16 border-b border-white/10">
-      <img src="/eum_white.png" alt="EUM" className="h-4 lg:hidden" />
+      <img src="/logo_white.png" alt="EUM" className="h-4 lg:hidden" />
 
       <div className="hidden lg:block" />
 

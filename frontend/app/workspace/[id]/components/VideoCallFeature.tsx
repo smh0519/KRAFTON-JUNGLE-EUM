@@ -421,15 +421,16 @@ export default function VideoCallFeature({ roomId, roomTitle, onLeave }: VideoCa
                     setError(err.message);
                 }}
                 options={{
-                    adaptiveStream: true,
+                    adaptiveStream: { pixelDensity: 'screen' },
                     dynacast: true,
                     disconnectOnPageLeave: true,
                     videoCaptureDefaults: {
-                        resolution: { width: 1280, height: 720, frameRate: 30 },
+                        resolution: { width: 960, height: 540, frameRate: 24 },
                     },
                     publishDefaults: {
                         simulcast: true,
-                        videoCodec: 'vp8',
+                        videoCodec: 'h264',
+                        backupCodec: { codec: 'vp8', encoding: { maxBitrate: 500000 } }
                     },
                 }}
                 className="h-full w-full flex flex-col"

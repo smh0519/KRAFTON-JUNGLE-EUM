@@ -55,15 +55,14 @@ function FileListItem({
 
   return (
     <div
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer group transition-all ${
-        isSelected ? "bg-gray-100" : "hover:bg-gray-50"
-      }`}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer group transition-all ${isSelected ? "bg-white/10" : "hover:bg-white/5"
+        }`}
       onClick={() => onFileClick(file)}
     >
       {/* Icon / Thumbnail */}
-      <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden relative">
+      <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 overflow-hidden relative">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <div className="absolute inset-0 flex items-center justify-center bg-white/5">
             <img
               src="/logo_black.png"
               alt=""
@@ -107,7 +106,7 @@ function FileListItem({
 
       {/* File Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-900 truncate">{file.name}</p>
+        <p className="text-sm text-white truncate">{file.name}</p>
         <div className="flex items-center gap-1.5 mt-0.5">
           {file.uploader && (
             <>
@@ -118,23 +117,23 @@ function FileListItem({
                   className="w-4 h-4 rounded-full object-cover"
                 />
               ) : (
-                <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-[8px] font-medium text-gray-500">
+                <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="text-[8px] font-medium text-white/70">
                     {file.uploader.nickname?.charAt(0)}
                   </span>
                 </div>
               )}
-              <span className="text-xs text-gray-400">{file.uploader.nickname}</span>
-              <span className="text-xs text-gray-300">·</span>
+              <span className="text-xs text-white/40">{file.uploader.nickname}</span>
+              <span className="text-xs text-white/20">·</span>
             </>
           )}
           {file.file_size && (
             <>
-              <span className="text-xs text-gray-400">{formatFileSize(file.file_size)}</span>
-              <span className="text-xs text-gray-300">·</span>
+              <span className="text-xs text-white/40">{formatFileSize(file.file_size)}</span>
+              <span className="text-xs text-white/20">·</span>
             </>
           )}
-          <span className="text-xs text-gray-400">{formatDate(file.created_at)}</span>
+          <span className="text-xs text-white/40">{formatDate(file.created_at)}</span>
         </div>
       </div>
 
@@ -142,7 +141,7 @@ function FileListItem({
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={(e) => { e.stopPropagation(); onRename(file); }}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -150,7 +149,7 @@ function FileListItem({
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(file); }}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50"
+          className="p-1.5 rounded-lg text-white/40 hover:text-red-500 hover:bg-red-500/10"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

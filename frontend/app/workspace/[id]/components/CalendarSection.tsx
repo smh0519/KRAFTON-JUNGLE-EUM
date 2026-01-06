@@ -216,36 +216,36 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex bg-white relative">
+    <div className="h-full flex bg-[#1f1f1f] relative">
       {/* Main Calendar Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="h-14 border-b border-black/5 flex items-center justify-between px-6 bg-white z-10">
+        <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-[#1f1f1f] z-10">
           <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-black">
+            <h2 className="text-lg font-bold text-white">
               {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
             </h2>
-            <div className="flex items-center gap-1 bg-black/5 rounded-lg p-0.5">
-              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:bg-white rounded-md transition-all">
-                <svg className="w-4 h-4 text-black/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5">
+              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))} className="p-1 hover:bg-white/10 rounded-md transition-all">
+                <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
-              <button onClick={() => { setCurrentDate(new Date()); setSelectedDate(today); }} className="px-2 py-0.5 text-xs font-medium text-black/60 hover:bg-white rounded-md transition-all">
+              <button onClick={() => { setCurrentDate(new Date()); setSelectedDate(today); }} className="px-2 py-0.5 text-xs font-medium text-white/60 hover:bg-white/10 rounded-md transition-all">
                 오늘
               </button>
-              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 hover:bg-white rounded-md transition-all">
-                <svg className="w-4 h-4 text-black/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))} className="p-1 hover:bg-white/10 rounded-md transition-all">
+                <svg className="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
           </div>
           <button
             onClick={() => openCreateModal()}
-            className="flex items-center gap-2 px-3 py-1.5 bg-black text-white rounded-lg text-xs font-medium hover:bg-black/80 transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 bg-white text-black rounded-lg text-xs font-medium hover:bg-white/90 transition-all"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             새 일정
@@ -255,9 +255,9 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
         {/* Content */}
         <div className="flex-1 flex flex-col overflow-y-auto">
           {/* Weekday Header */}
-          <div className="grid grid-cols-7 border-b border-black/5 sticky top-0 bg-white z-10">
+          <div className="grid grid-cols-7 border-b border-white/5 sticky top-0 bg-[#1f1f1f] z-10">
             {['일', '월', '화', '수', '목', '금', '토'].map((day, idx) => (
-              <div key={day} className={`py-2 text-center text-xs font-medium ${idx === 0 ? 'text-red-500' : idx === 6 ? 'text-blue-500' : 'text-black/50'}`}>
+              <div key={day} className={`py-2 text-center text-xs font-medium ${idx === 0 ? 'text-red-400' : idx === 6 ? 'text-blue-400' : 'text-white/50'}`}>
                 {day}
               </div>
             ))}
@@ -265,7 +265,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
 
           {/* Weeks */}
           {weeks.map((week, weekIdx) => (
-            <div key={weekIdx} className="flex-1 min-h-[120px] relative border-b border-black/5">
+            <div key={weekIdx} className="flex-1 min-h-[120px] relative border-b border-white/5">
               {/* Background Grid */}
               <div className="absolute inset-0 grid grid-cols-7">
                 {week.map((date, dayIdx) => {
@@ -277,13 +277,13 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                     <div
                       key={dayIdx}
                       onClick={() => setSelectedDate(date)}
-                      className={`border-r border-black/5 p-2 transition-colors cursor-pointer hover:bg-black/[0.02] ${isSelected ? 'bg-black/[0.03]' : ''}`}
+                      className={`border-r border-white/5 p-2 transition-colors cursor-pointer hover:bg-white/[0.02] ${isSelected ? 'bg-white/[0.03]' : ''}`}
                     >
                       <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full 
-                                        ${isToday ? 'bg-black text-white font-bold' :
-                          !isCurrentMonth ? 'text-black/20' :
-                            dayIdx === 0 ? 'text-red-500' :
-                              dayIdx === 6 ? 'text-blue-500' : 'text-black/70'}`}
+                                        ${isToday ? 'bg-white text-black font-bold' :
+                          !isCurrentMonth ? 'text-white/20' :
+                            dayIdx === 0 ? 'text-red-400' :
+                              dayIdx === 6 ? 'text-blue-400' : 'text-white/70'}`}
                       >
                         {date.getDate()}
                       </div>
@@ -370,7 +370,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                         {isSingleDay ? (
                           <div className="flex items-center gap-1.5 w-full">
                             <div className={`w-1.5 h-1.5 rounded-full ${colorInfo.value}`} />
-                            <span className="text-black/70 font-medium truncate">{event.title}</span>
+                            <span className="text-white/90 font-medium truncate">{event.title}</span>
                           </div>
                         ) : (
                           <span className="font-medium truncate leading-none">{event.title}</span>
@@ -386,12 +386,12 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
       </div>
 
       {/* Sidebar Details */}
-      <div className="w-80 border-l border-black/5 bg-white flex flex-col">
-        <div className="px-6 py-5 border-b border-black/5">
-          <h2 className="text-lg font-bold text-black">
+      <div className="w-80 border-l border-white/5 bg-[#1a1a1a] flex flex-col">
+        <div className="px-6 py-5 border-b border-white/5">
+          <h2 className="text-lg font-bold text-white">
             {selectedDate?.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" }) || "날짜 선택"}
           </h2>
-          <p className="text-sm text-black/40 mt-0.5">
+          <p className="text-sm text-white/40 mt-0.5">
             {selectedDate ? `${getEventsForDate(selectedDate).length}개의 일정` : "일정을 선택하세요"}
           </p>
         </div>
@@ -403,13 +403,13 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                 <div
                   key={event.id}
                   onClick={(e) => handleEventClick(event, e)}
-                  className="p-4 rounded-xl bg-black/[0.02] hover:bg-black/[0.04] transition-all cursor-pointer group border border-transparent hover:border-black/5 relative"
+                  className="p-4 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] transition-all cursor-pointer group border border-transparent hover:border-white/5 relative"
                 >
                   <div className="flex items-start gap-3">
                     <div className={`w-1 self-stretch rounded-full ${colorInfo.value} opacity-60`} />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-black text-sm truncate pr-6">{event.title}</h3>
-                      <p className="text-xs text-black/40 mt-1">
+                      <h3 className="font-semibold text-white text-sm truncate pr-6">{event.title}</h3>
+                      <p className="text-xs text-white/40 mt-1">
                         {event.is_all_day ? "하루 종일" : `${formatTime(event.start_at)} - ${formatTime(event.end_at)}`}
                       </p>
                     </div>
@@ -419,7 +419,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                       e.stopPropagation();
                       handleDeleteEvent(event.id);
                     }}
-                    className="absolute top-3 right-3 p-1 rounded-md text-black/20 hover:text-red-500 hover:bg-black/5 opacity-0 group-hover:opacity-100 transition-all"
+                    className="absolute top-3 right-3 p-1 rounded-md text-white/20 hover:text-red-500 hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all"
                     title="삭제"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -431,8 +431,8 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
             })
           ) : (
             <div className="text-center py-10">
-              <p className="text-sm text-black/30">등록된 일정이 없습니다</p>
-              <button onClick={() => openCreateModal()} className="mt-2 text-xs text-black font-medium underline opacity-50 hover:opacity-100">
+              <p className="text-sm text-white/30">등록된 일정이 없습니다</p>
+              <button onClick={() => openCreateModal()} className="mt-2 text-xs text-white font-medium underline opacity-50 hover:opacity-100">
                 새 일정 만들기
               </button>
             </div>
@@ -442,7 +442,7 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
           <div className="absolute bottom-4 right-4 z-20">
             <button
               onClick={() => setShowTrashModal(true)}
-              className="w-10 h-10 bg-black text-white rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center group relative overflow-hidden"
+              className="w-10 h-10 bg-[#333] text-white rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center group relative overflow-hidden"
               title="휴지통"
             >
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform" />
@@ -458,30 +458,30 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
 
       {/* Trash Modal */}
       {showTrashModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTrashModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-black/5 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-black flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowTrashModal(false)}>
+          <div className="bg-[#2a2a2a] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>휴지통</span>
-                <span className="bg-black/5 text-black/50 text-xs px-2 py-0.5 rounded-full">{trashedEvents.length}</span>
+                <span className="bg-white/5 text-white/50 text-xs px-2 py-0.5 rounded-full">{trashedEvents.length}</span>
               </h3>
-              <button onClick={() => setShowTrashModal(false)} className="p-1 rounded-full hover:bg-black/5 transition-colors">
-                <svg className="w-5 h-5 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              <button onClick={() => setShowTrashModal(false)} className="p-1 rounded-full hover:bg-white/5 transition-colors">
+                <svg className="w-5 h-5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
-            <div className="p-0 h-[60vh] overflow-y-auto bg-black/[0.02]">
+            <div className="p-0 h-[60vh] overflow-y-auto bg-black/[0.2]">
               {trashedEvents.length > 0 ? (
                 <div className="p-4 space-y-3">
                   {trashedEvents.map(event => {
                     const colorInfo = colorOptions.find(c => c.value === event.color) || colorOptions[0];
                     return (
-                      <div key={event.id} className="bg-white p-4 rounded-xl shadow-sm border border-black/5">
+                      <div key={event.id} className="bg-[#333] p-4 rounded-xl shadow-sm border border-white/5">
                         <div className="flex items-start gap-3 mb-3">
                           <div className={`w-1 self-stretch rounded-full ${colorInfo.value} opacity-60`} />
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-black text-sm truncate">{event.title}</h4>
-                            <p className="text-xs text-black/40 mt-1">
+                            <h4 className="font-semibold text-white text-sm truncate">{event.title}</h4>
+                            <p className="text-xs text-white/40 mt-1">
                               {event.is_all_day ? "하루 종일" : `${formatTime(event.start_at)} - ${formatTime(event.end_at)}`}
                             </p>
                           </div>
@@ -489,14 +489,14 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleRestoreEvent(event)}
-                            className="flex-1 py-1.5 flex items-center justify-center gap-1.5 bg-black/5 hover:bg-black/10 text-black/70 text-xs font-medium rounded-lg transition-colors"
+                            className="flex-1 py-1.5 flex items-center justify-center gap-1.5 bg-white/5 hover:bg-white/10 text-white/70 text-xs font-medium rounded-lg transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                             복구
                           </button>
                           <button
                             onClick={() => handlePermanentDeleteEvent(event.id)}
-                            className="flex-1 py-1.5 flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium rounded-lg transition-colors"
+                            className="flex-1 py-1.5 flex items-center justify-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-medium rounded-lg transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             영구 삭제
@@ -508,10 +508,10 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center p-8">
-                  <div className="w-16 h-16 bg-black/5 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-white/20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   </div>
-                  <p className="text-black/40 text-sm">휴지통이 비어있습니다</p>
+                  <p className="text-white/40 text-sm">휴지통이 비어있습니다</p>
                 </div>
               )}
             </div>
@@ -521,26 +521,26 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
 
       {/* Event Detail Modal */}
       {showDetailModal && selectedEvent && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowDetailModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-5 border-b border-black/5 flex justify-between items-start">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowDetailModal(false)}>
+          <div className="bg-[#2a2a2a] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-5 border-b border-white/5 flex justify-between items-start">
               <div className="flex-1 pr-4">
-                <h3 className="text-lg font-bold text-black leading-tight break-words">{selectedEvent.title}</h3>
+                <h3 className="text-lg font-bold text-white leading-tight break-words">{selectedEvent.title}</h3>
                 <div className="flex items-center gap-2 mt-2">
                   <div className={`w-2 h-2 rounded-full ${selectedEvent.color || 'bg-blue-500'}`} />
-                  <span className="text-xs text-black/50 font-medium">
+                  <span className="text-xs text-white/50 font-medium">
                     {new Date(selectedEvent.start_at).toLocaleDateString()}
                   </span>
                 </div>
               </div>
-              <button onClick={() => handleDeleteEvent(selectedEvent.id)} className="text-black/30 hover:text-red-500 transition-colors p-1">
+              <button onClick={() => handleDeleteEvent(selectedEvent.id)} className="text-white/30 hover:text-red-500 transition-colors p-1">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-black/40 uppercase tracking-wider">Time</label>
-                <p className="text-sm text-black/80 font-medium">
+                <label className="text-xs font-semibold text-white/40 uppercase tracking-wider">Time</label>
+                <p className="text-sm text-white/80 font-medium">
                   {selectedEvent.is_all_day
                     ? "하루 종일"
                     : `${new Date(selectedEvent.start_at).toLocaleString()} ~ ${new Date(selectedEvent.end_at).toLocaleString()}`
@@ -549,15 +549,15 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
               </div>
               {selectedEvent.description && (
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-black/40 uppercase tracking-wider">Description</label>
-                  <p className="text-sm text-black/70 bg-black/[0.02] p-3 rounded-lg leading-relaxed whitespace-pre-wrap">
+                  <label className="text-xs font-semibold text-white/40 uppercase tracking-wider">Description</label>
+                  <p className="text-sm text-white/70 bg-white/[0.05] p-3 rounded-lg leading-relaxed whitespace-pre-wrap">
                     {selectedEvent.description}
                   </p>
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 bg-black/[0.02] border-t border-black/5 flex justify-end">
-              <button onClick={() => setShowDetailModal(false)} className="px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-black/80 transition-all">
+            <div className="px-6 py-4 bg-white/[0.02] border-t border-white/5 flex justify-end">
+              <button onClick={() => setShowDetailModal(false)} className="px-4 py-2 bg-white text-black text-sm font-medium rounded-lg hover:bg-white/90 transition-all">
                 닫기
               </button>
             </div>
@@ -567,12 +567,12 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
 
       {/* Create Event Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-black/5">
-              <h3 className="text-lg font-bold text-black">새 일정 목록 추가</h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-1 rounded-full hover:bg-black/5 transition-colors">
-                <svg className="w-5 h-5 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-[#2a2a2a] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-zoom-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+              <h3 className="text-lg font-bold text-white">새 일정 목록 추가</h3>
+              <button onClick={() => setShowCreateModal(false)} className="p-1 rounded-full hover:bg-white/5 transition-colors">
+                <svg className="w-5 h-5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -580,23 +580,23 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
 
             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-black/50 mb-1.5">제목</label>
+                <label className="block text-xs font-medium text-white/50 mb-1.5">제목</label>
                 <input
                   type="text"
                   value={newEvent.title}
                   onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                  className="w-full px-3 py-2.5 text-sm bg-black/[0.03] rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 transition-all outline-none"
+                  className="w-full px-3 py-2.5 text-sm bg-black/[0.2] text-white rounded-lg focus:bg-black/[0.4] focus:ring-2 focus:ring-white/10 transition-all outline-none"
                   placeholder="제목 입력"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black/50 mb-1.5">설명</label>
+                <label className="block text-xs font-medium text-white/50 mb-1.5">설명</label>
                 <textarea
                   value={newEvent.description}
                   onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                  className="w-full px-3 py-2.5 text-sm bg-black/[0.03] rounded-lg focus:bg-white focus:ring-2 focus:ring-black/5 transition-all outline-none resize-none h-20"
+                  className="w-full px-3 py-2.5 text-sm bg-black/[0.2] text-white rounded-lg focus:bg-black/[0.4] focus:ring-2 focus:ring-white/10 transition-all outline-none resize-none h-20"
                   placeholder="상세 내용을 입력하세요..."
                 />
               </div>
@@ -607,56 +607,56 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
                   id="isAllDay"
                   checked={newEvent.isAllDay}
                   onChange={e => setNewEvent({ ...newEvent, isAllDay: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-300 text-black focus:ring-black/20"
+                  className="w-4 h-4 rounded border-gray-600 bg-black/[0.2] text-white focus:ring-offset-0 focus:ring-white/20"
                 />
-                <label htmlFor="isAllDay" className="text-sm font-medium text-black/70 cursor-pointer select-none">하루 종일</label>
+                <label htmlFor="isAllDay" className="text-sm font-medium text-white/70 cursor-pointer select-none">하루 종일</label>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-black/50 mb-1.5">시작</label>
+                  <label className="block text-xs font-medium text-white/50 mb-1.5">시작</label>
                   <input
                     type="date"
                     value={newEvent.startDate}
                     onChange={(e) => setNewEvent({ ...newEvent, startDate: e.target.value })}
-                    className="w-full px-3 py-2 text-sm bg-black/[0.03] rounded-lg mb-2"
+                    className="w-full px-3 py-2 text-sm bg-black/[0.2] text-white rounded-lg mb-2 [color-scheme:dark]"
                   />
                   {!newEvent.isAllDay && (
                     <input
                       type="time"
                       value={newEvent.startTime}
                       onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                      className="w-full px-3 py-2 text-sm bg-black/[0.03] rounded-lg"
+                      className="w-full px-3 py-2 text-sm bg-black/[0.2] text-white rounded-lg [color-scheme:dark]"
                     />
                   )}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-black/50 mb-1.5">종료</label>
+                  <label className="block text-xs font-medium text-white/50 mb-1.5">종료</label>
                   <input
                     type="date"
                     value={newEvent.endDate}
                     onChange={(e) => setNewEvent({ ...newEvent, endDate: e.target.value })}
-                    className="w-full px-3 py-2 text-sm bg-black/[0.03] rounded-lg mb-2"
+                    className="w-full px-3 py-2 text-sm bg-black/[0.2] text-white rounded-lg mb-2 [color-scheme:dark]"
                   />
                   {!newEvent.isAllDay && (
                     <input
                       type="time"
                       value={newEvent.endTime}
                       onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                      className="w-full px-3 py-2 text-sm bg-black/[0.03] rounded-lg"
+                      className="w-full px-3 py-2 text-sm bg-black/[0.2] text-white rounded-lg [color-scheme:dark]"
                     />
                   )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-black/50 mb-2">색상</label>
+                <label className="block text-xs font-medium text-white/50 mb-2">색상</label>
                 <div className="flex gap-2">
                   {colorOptions.map(c => (
                     <button
                       key={c.value}
                       onClick={() => setNewEvent({ ...newEvent, color: c.value })}
-                      className={`w-6 h-6 rounded-full ${c.value} transition-transform hover:scale-110 ${newEvent.color === c.value ? 'ring-2 ring-offset-1 ring-black/30 scale-110' : ''}`}
+                      className={`w-6 h-6 rounded-full ${c.value} transition-transform hover:scale-110 ${newEvent.color === c.value ? 'ring-2 ring-offset-1 ring-white/30 scale-110' : ''}`}
                       title={c.label}
                     />
                   ))}
@@ -667,14 +667,14 @@ export default function CalendarSection({ workspaceId }: CalendarSectionProps) {
             <div className="px-5 pb-5 pt-2 flex gap-2">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 py-2.5 text-black/60 text-sm font-medium hover:bg-black/5 rounded-lg transition-all"
+                className="flex-1 py-2.5 text-white/60 text-sm font-medium hover:bg-white/5 rounded-lg transition-all"
               >
                 취소
               </button>
               <button
                 onClick={handleCreateEvent}
                 disabled={!newEvent.title.trim() || isCreating}
-                className="flex-1 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-black/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 bg-white text-black text-sm font-medium rounded-lg hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {isCreating ? "저장 중..." : "일정 저장"}
               </button>

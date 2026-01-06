@@ -137,18 +137,18 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-8 py-6 border-b border-black/5">
+      <div className="px-8 py-6 border-b border-white/5">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-black">멤버</h1>
-            <p className="text-sm text-black/40 mt-1">
+            <h1 className="text-2xl font-semibold text-white">멤버</h1>
+            <p className="text-sm text-white/40 mt-1">
               {members.length}명의 멤버
             </p>
           </div>
           {canManageMembers && (
             <button
               onClick={() => setShowInviteModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-black text-white text-sm font-medium rounded-lg hover:bg-black/80 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-white text-black text-sm font-medium rounded-lg hover:bg-white/90 transition-colors"
             >
               <Plus size={16} />
               멤버 초대
@@ -164,9 +164,9 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
               placeholder="이름 또는 이메일로 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-black/[0.03] border-0 rounded-lg text-sm placeholder:text-black/30 focus:outline-none focus:ring-2 focus:ring-black/10"
+              className="w-full pl-10 pr-4 py-2.5 bg-white/[0.05] border-0 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/10"
             />
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-black/30" />
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
           </div>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
             return (
               <div
                 key={member.id}
-                className="flex items-center gap-4 p-3 rounded-xl hover:bg-black/[0.02] transition-colors group"
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/[0.03] transition-colors group"
               >
                 {/* Avatar */}
                 <div className="relative">
@@ -192,8 +192,8 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                       className="w-11 h-11 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-black/10 to-black/5 flex items-center justify-center">
-                      <span className="text-sm font-medium text-black/50">
+                    <div className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center">
+                      <span className="text-sm font-medium text-white/70">
                         {member.name.charAt(0)}
                       </span>
                     </div>
@@ -201,41 +201,41 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                   <StatusIndicator
                     status={currentStatus}
                     size="md"
-                    className="absolute bottom-0 right-0 border-white"
+                    className="absolute bottom-0 right-0 border-[#1a1a1a]"
                   />
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-black">{member.name}</span>
+                    <span className="font-medium text-white">{member.name}</span>
                     {/* Status Emoji Display */}
                     {(presence?.custom_status_emoji || presence?.custom_status_text) && (
-                      <div className="group/status flex items-center gap-1.5 ml-1 px-2 py-0.5 rounded-full bg-black/[0.03] border border-black/5" title={presence.custom_status_text}>
+                      <div className="group/status flex items-center gap-1.5 ml-1 px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/5" title={presence.custom_status_text}>
                         <span className="text-sm leading-none">{presence.custom_status_emoji || "💬"}</span>
                         {presence.custom_status_text && (
-                          <span className="text-xs text-black/60 max-w-[120px] truncate hidden sm:inline-block">
+                          <span className="text-xs text-white/50 max-w-[120px] truncate hidden sm:inline-block">
                             {presence.custom_status_text}
                           </span>
                         )}
                       </div>
                     )}
                     {member.isOwner ? (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
                         {roleLabels.owner}
                       </span>
                     ) : member.role ? (
                       <span
                         className="text-[10px] font-medium px-1.5 py-0.5 rounded"
                         style={{
-                          backgroundColor: member.role.color ? `${member.role.color}20` : '#F3F4F6',
-                          color: member.role.color || '#4B5563'
+                          backgroundColor: member.role.color ? `${member.role.color}20` : '#ffffff10',
+                          color: member.role.color || '#9ca3af'
                         }}
                       >
                         {member.role.name}
                       </span>
                     ) : null}
                   </div>
-                  <p className="text-sm text-black/40 truncate">{member.email}</p>
+                  <p className="text-sm text-white/40 truncate">{member.email}</p>
                 </div>
 
                 {/* Actions */}
@@ -248,12 +248,12 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                         e.stopPropagation();
                         handleStartDM(member.userId);
                       }}
-                      className="p-2 rounded-lg hover:bg-black/5 text-black/40 hover:text-black transition-colors relative"
+                      className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors relative"
                       title="DM 보내기"
                     >
                       <MessageSquare size={18} strokeWidth={1.5} />
                       {unreadCounts[member.userId] > 0 && (
-                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#1a1a1a]"></span>
                       )}
                     </button>
                   )}
@@ -264,7 +264,7 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
                         e.stopPropagation();
                         handleKickMember(member.userId, member.name);
                       }}
-                      className="p-2 rounded-lg hover:bg-red-50 text-black/20 hover:text-red-500 transition-colors"
+                      className="p-2 rounded-lg hover:bg-red-500/10 text-white/20 hover:text-red-500 transition-colors"
                       title="멤버 강퇴"
                     >
                       <Trash2 size={18} strokeWidth={1.5} />
@@ -278,13 +278,13 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
           {/* Empty State */}
           {sortedMembers.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-black/40">
+              <p className="text-white/30">
                 {searchQuery ? "검색 결과가 없습니다" : "멤버가 없습니다"}
               </p>
             </div>
           )}
         </div>
-      </div >
+      </div>
 
       {/* Invite Modal */}
       <InviteMemberModal
