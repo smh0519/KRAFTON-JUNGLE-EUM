@@ -119,6 +119,7 @@ export default function ActiveSpeakerOverlay() {
                         trackRef={{
                             participant: displaySpeaker,
                             source: Track.Source.Camera,
+                            publication: displaySpeaker.getTrackPublication(Track.Source.Camera)!,
                         }}
                         className="w-full h-full object-cover transform scale-125 pointer-events-none"
                     />

@@ -350,6 +350,8 @@ export default function WorkspacePage() {
               <div className="lg:hidden mb-10">
                 <p className="text-white/50 text-xs tracking-wide uppercase mb-2">Welcome back</p>
                 <h1 className="text-3xl font-bold tracking-tight text-white">{user.nickname}</h1>
+              </div>
+
             {/* Loading State */}
             {isLoadingWorkspaces && (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -368,7 +370,7 @@ export default function WorkspacePage() {
                 />
                 <p className="text-black/40 mb-8">아직 워크스페이스가 없습니다</p>
                 <button
-                  onClick={handleOpenModal}
+                  onClick={createWorkspaceHook.openModal}
                   className="group flex items-center gap-3 px-8 py-3 bg-black text-white rounded-full hover:bg-black/80 transition-all duration-300"
                 >
                   <svg
@@ -387,6 +389,7 @@ export default function WorkspacePage() {
                   <span className="font-medium">새 워크스페이스 만들기</span>
                 </button>
               </div>
+            )}
 
               {/* Search & Filter Bar */}
               <div className="mb-6 space-y-4">
