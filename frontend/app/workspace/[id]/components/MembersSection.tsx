@@ -295,6 +295,6 @@ export default function MembersSection({ workspace, onMembersUpdate, onSectionCh
         onClose={() => setShowInviteModal(false)}
         onSuccess={handleInviteSuccess}
       />
-    </div >
+    </div>
   );
 }

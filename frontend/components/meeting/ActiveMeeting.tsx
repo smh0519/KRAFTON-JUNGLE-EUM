@@ -12,10 +12,14 @@ import { TargetLanguage } from '@/app/hooks/useAudioWebSocket';
 import { apiClient } from '@/app/lib/api';
 import WhiteboardCanvas from '@/components/video/whiteboard/WhiteboardCanvas';
 import ChatPanel, { VoiceRecord } from '@/components/video/ChatPanel';
+import { useParticipants } from '@livekit/components-react'; // Added
+import { VideoTrack as LiveKitVideoTrack } from '@livekit/components-react'; // Added
 
 import MeetingTopBar from './MeetingTopBar';
 import MeetingControlBar from './MeetingControlBar';
 import VideoSidebar from './VideoSidebar';
+import VideoGrid from './VideoGrid'; // Added
+import ParticipantVideoTile from './ParticipantVideoTile'; // Added
 import SubtitlePills from './SubtitlePills';
 
 interface ActiveMeetingProps {
@@ -38,16 +42,16 @@ export default function ActiveMeeting({
   const [isWhiteboardMode, setIsWhiteboardMode] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
-  
+
   // Translation state
   const [isTranslationOpen, setIsTranslationOpen] = useState(false);
   const [sourceLanguage, setSourceLanguage] = useState<TargetLanguage>('ko');
   const [targetLanguage, setTargetLanguage] = useState<TargetLanguage>('en');
-  
+
   // Chat state
   const [unreadCount, setUnreadCount] = useState(0);
   const [voiceRecords, setVoiceRecords] = useState<VoiceRecord[]>([]);
-  
+
   // Subtitle state
   const [currentSpeaker, setCurrentSpeaker] = useState<{ name: string; profileImg?: string; isLocal?: boolean } | null>(null);
   const [currentTranscript, setCurrentTranscript] = useState<string | null>(null);
@@ -55,8 +59,26 @@ export default function ActiveMeeting({
   const transcriptTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // LiveKit
+  // LiveKit
   const { localParticipant } = useLocalParticipant();
+  const participants = useParticipants(); // Added to find pinned participant
   const tracks = useTracks([Track.Source.Camera, Track.Source.Microphone]);
+  const screenShareTracks = useTracks([Track.Source.ScreenShare]); // Added
+
+  // Layout Logic
+  const [pinnedParticipantId, setPinnedParticipantId] = useState<string | null>(null);
+
+  const isScreenSharingActive = screenShareTracks.length > 0;
+  const isSidebarLayout = isWhiteboardMode || isScreenSharingActive || pinnedParticipantId !== null;
+
+  // Find pinned participant
+  const pinnedParticipant = participants.find(p => p.identity === pinnedParticipantId);
+  // Find pinned participant tracks
+  const pinnedVideoTrack = tracks.find(t => t.participant.identity === pinnedParticipantId && t.source === Track.Source.Camera);
+  const pinnedAudioTrack = tracks.find(t => t.participant.identity === pinnedParticipantId && t.source === Track.Source.Microphone);
+
+  // Use first screen share if active
+  const activeScreenShare = screenShareTracks[0];
 
   // Media states
   const isMicEnabled = localParticipant?.isMicrophoneEnabled ?? false;
@@ -109,7 +131,7 @@ export default function ActiveMeeting({
 
       if (!data.isFinal) {
         const isLastRecordPartial = lastRecord && !lastRecord._isFinal;
-        
+
         if (isLastRecordPartial) {
           const updated = [...prev];
           updated[lastIndex] = {
@@ -121,7 +143,7 @@ export default function ActiveMeeting({
           };
           return updated;
         }
-        
+
         return [...prev, {
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           speaker,
@@ -136,7 +158,7 @@ export default function ActiveMeeting({
       }
 
       const isLastRecordPartial = lastRecord && !lastRecord._isFinal;
-      
+
       if (isLastRecordPartial) {
         const updated = [...prev];
         updated[lastIndex] = {
@@ -244,6 +266,8 @@ export default function ActiveMeeting({
 
   const toggleWhiteboard = useCallback(() => {
     setIsWhiteboardMode(prev => !prev);
+    // If turning off whiteboard, reset pin if no screen share? 
+    // Actually simpler to just let user unpin manually or logic handles layout switch automatically.
   }, []);
 
   const toggleTranslation = useCallback(() => {
@@ -257,14 +281,14 @@ export default function ActiveMeeting({
   // Close language dropdown when clicking outside
   useEffect(() => {
     if (!showLanguageDropdown) return;
-    
+
     const handleClick = () => setShowLanguageDropdown(false);
-    
+
     // Add listener on next tick to avoid immediate closure from same click
     const timeoutId = setTimeout(() => {
       document.addEventListener('click', handleClick);
     }, 0);
-    
+
     return () => {
       clearTimeout(timeoutId);
       document.removeEventListener('click', handleClick);
@@ -274,7 +298,7 @@ export default function ActiveMeeting({
   return (
     <div className="h-full w-full bg-white flex flex-col overflow-hidden">
       <RoomAudioRenderer />
-      
+
       {/* Top Bar */}
       <MeetingTopBar
         roomTitle={roomTitle}
@@ -283,37 +307,70 @@ export default function ActiveMeeting({
       />
 
       {/* Main Content */}
+      {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Whiteboard / Video Area (75%) */}
-        <div className="flex-1 bg-stone-50 overflow-hidden">
-          {isWhiteboardMode ? (
-            <div className="h-full p-4">
-              <div className="h-full bg-white rounded-xl border border-black/[0.06] overflow-hidden">
-                <WhiteboardCanvas />
-              </div>
-            </div>
-          ) : (
-            <div className="h-full p-4">
-              {/* Video Grid Placeholder - In non-whiteboard mode, videos are in sidebar */}
-              <div className="h-full bg-white rounded-xl border border-black/[0.06] flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-black/[0.04] flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-black/20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-black/40">비디오는 오른쪽 사이드바에 표시됩니다</p>
-                  <p className="text-xs text-black/30 mt-1">화이트보드 모드로 전환하여 협업하세요</p>
+        {/* Main View Area */}
+        {isSidebarLayout ? (
+          <>
+            {/* Content Area (75%) */}
+            <div className="flex-1 bg-stone-50 overflow-hidden relative">
+              <div className="absolute inset-0 p-4">
+                <div className="w-full h-full bg-white rounded-xl border border-black/[0.06] overflow-hidden relative flex items-center justify-center">
+                  {isWhiteboardMode ? (
+                    <WhiteboardCanvas />
+                  ) : isScreenSharingActive && activeScreenShare ? (
+                    /* Screen Share View */
+                    <div className="w-full h-full">
+                      <LiveKitVideoTrack
+                        trackRef={activeScreenShare}
+                        className="w-full h-full object-contain bg-black"
+                      />
+                      <div className="absolute bottom-4 left-4 bg-black/60 text-white px-3 py-1 rounded text-sm">
+                        {activeScreenShare.participant.identity}님의 화면 공유
+                      </div>
+                    </div>
+                  ) : pinnedParticipant ? (
+                    /* Pinned Participant View */
+                    <div className="w-full h-full">
+                      <ParticipantVideoTile
+                        participant={pinnedParticipant}
+                        videoTrack={pinnedVideoTrack?.publication?.track?.mediaStreamTrack}
+                        audioTrack={pinnedAudioTrack?.publication?.track?.mediaStreamTrack}
+                        isLocal={pinnedParticipant.isLocal}
+                        currentUser={currentUser}
+                        size="lg"
+                        showName={true}
+                        aspectRatio="video"
+                        onClick={() => setPinnedParticipantId(null)} // Unpin on click
+                      />
+                      <button
+                        onClick={() => setPinnedParticipantId(null)}
+                        className="absolute top-4 right-4 bg-black/40 hover:bg-black/60 text-white px-3 py-1.5 rounded-lg text-sm transition-colors"
+                      >
+                        고정 해제
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-stone-400">콘텐츠를 선택하세요</div>
+                  )}
                 </div>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Video Sidebar (25%) */}
-        <div className="w-72 flex-shrink-0">
-          <VideoSidebar currentUser={currentUser} />
-        </div>
+            {/* Video Sidebar (25%) */}
+            <div className="w-72 flex-shrink-0 border-l border-black/[0.06]">
+              <VideoSidebar currentUser={currentUser} />
+            </div>
+          </>
+        ) : (
+          /* Grid View (100%) - Default */
+          <div className="flex-1 bg-stone-50 overflow-hidden relative">
+            <VideoGrid
+              currentUser={currentUser}
+              onPin={(id) => setPinnedParticipantId(id)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Control Bar */}

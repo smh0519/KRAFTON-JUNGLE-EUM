@@ -53,7 +53,7 @@ export default function PollCreateForm({ onSubmit, onCancel }: PollCreateFormPro
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     placeholder="투표 주제를 입력하세요"
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-black/5"
+                    className="w-full px-3 py-2 bg-gray-50 border-2 border-gray-300 text-black rounded-md focus:outline-none focus:ring-2 focus:ring-black/5 focus:bg-white transition-colors"
                     autoFocus
                 />
             </div>
@@ -67,7 +67,7 @@ export default function PollCreateForm({ onSubmit, onCancel }: PollCreateFormPro
                             value={option}
                             onChange={(e) => handleOptionChange(index, e.target.value)}
                             placeholder={`옵션 ${index + 1}`}
-                            className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-black/5"
+                            className="flex-1 px-3 py-2 bg-gray-50 border-2 border-gray-300 text-black rounded-md focus:outline-none focus:ring-2 focus:ring-black/5 focus:bg-white transition-colors"
                         />
                         {options.length > 2 && (
                             <button
@@ -98,8 +98,8 @@ export default function PollCreateForm({ onSubmit, onCancel }: PollCreateFormPro
                             type="button"
                             onClick={() => setDuration(d.value)}
                             className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${duration === d.value
-                                    ? 'bg-black text-white border-black'
-                                    : 'bg-white text-black/60 border-black/10 hover:border-black/30'
+                                ? 'bg-black text-white border-black'
+                                : 'bg-white text-black/60 border-black/10 hover:border-black/30'
                                 }`}
                         >
                             {d.label}
