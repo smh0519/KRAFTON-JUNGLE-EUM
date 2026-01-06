@@ -29,6 +29,9 @@ export default function WhiteboardCanvas() {
         tool: WhiteboardTool; // Changed from isEraser to tool
     } | null>(null);
 
+    // FIX: Lock processing to prevent double-save race conditions
+    // Removed isProcessingRef to fix data loss bug. Using Capture-and-Clear strategy instead.
+
     // Filters for Jitter Reduction (Phase 2)
     // minCutoff=1.0 (Hz), beta=0.23 (Response Speed)
     // TUNING: Aggressive Beta (0.05 -> 0.23) to ELIMINATE lag/squaring on fast circles.
@@ -86,7 +89,9 @@ export default function WhiteboardCanvas() {
 
         // Build Path
         const buildPath = () => {
-            if (points.length < 3) {
+            // FIX: Don't smooth simple polygons (Rectangles/Triangles have < 10 points)
+            // If we smooth a 5-point rectangle, it becomes a blob.
+            if (points.length < 10) {
                 graphics.moveTo(points[0].x, points[0].y);
                 for (let i = 1; i < points.length; i++) {
                     graphics.lineTo(points[i].x, points[i].y);
@@ -199,6 +204,9 @@ export default function WhiteboardCanvas() {
         let isDrawing = false;
         let isPanning = false;
         let lastPanPoint: { x: number; y: number } | null = null;
+        let dragStartPoint: { x: number; y: number } | null = null;
+        let lockedAxis: 'x' | 'y' | null = null;
+        let driftOffset = { x: 0, y: 0 };
         let canvasElement: HTMLCanvasElement | null = null;
         let prevRawPoint: { x: number; y: number } | null = null;
         let prevRenderedPoint: { x: number; y: number } | null = null;
@@ -254,6 +262,10 @@ export default function WhiteboardCanvas() {
             isDrawing = true;
             setIsDrawing(true);
             const startPoint = getLocalPoint(e.clientX, e.clientY);
+            // Capture start point for orthogonal drawing (Shift key)
+            dragStartPoint = startPoint;
+            lockedAxis = null;
+            driftOffset = { x: 0, y: 0 };
 
             // Phase 2: Input Stabilization - Reset Filters
             filterX.current.reset();
@@ -274,16 +286,7 @@ export default function WhiteboardCanvas() {
             const cursorPoint = getLocalPoint(e.clientX, e.clientY);
             broadcastCursor(cursorPoint.x, cursorPoint.y);
 
-            // Update local cursor visual immediately (performance)
-            if (localCursorRef.current) {
-                // Ensure the cursor follows the mouse pointer relative to the viewport/container
-                // Assuming containerRef has relative positioning and matches window/parent
-                // But e.clientX is viewport relative. We need position relative to containerRef.
-                const rect = containerRef.current!.getBoundingClientRect();
-                const localX = e.clientX - rect.left;
-                const localY = e.clientY - rect.top;
-                localCursorRef.current.style.transform = `translate(${localX}px, ${localY}px)`;
-            }
+            // (Local cursor update moved below to use stabilized/constrained point)
 
             if (isPanning && lastPanPoint) {
                 const dx = e.clientX - lastPanPoint.x;
@@ -302,7 +305,47 @@ export default function WhiteboardCanvas() {
 
             if (!isDrawing || !prevRawPoint || !prevRenderedPoint) return;
 
-            const rawPoint = getLocalPoint(e.clientX, e.clientY);
+            const currentRaw = getLocalPoint(e.clientX, e.clientY);
+
+            // Apply existing drift offset
+            const rawPoint = {
+                x: currentRaw.x + driftOffset.x,
+                y: currentRaw.y + driftOffset.y
+            };
+
+            // Shift Key: Straight Line Constraint (Orthogonal)
+            if (toolRef.current === 'pen' && isDrawing && dragStartPoint) {
+                // Feature: Freeze drawing if Shift is released mid-stroke (Prevent "Tail")
+                if (lockedAxis && !e.shiftKey) {
+                    return;
+                }
+
+                // 1. Engage Lock if Shift is pressed and not yet locked
+                if (e.shiftKey && !lockedAxis) {
+                    const dx = Math.abs(currentRaw.x - dragStartPoint.x);
+                    const dy = Math.abs(currentRaw.y - dragStartPoint.y);
+
+                    // Threshold to prevent accidental locking on micro-movements (optional, but good practice)
+                    if (Math.hypot(dx, dy) > 5) {
+                        if (dx > dy) {
+                            lockedAxis = 'y'; // Lock Y axis (Horizontal movement)
+                        } else {
+                            lockedAxis = 'x'; // Lock X axis (Vertical movement)
+                        }
+                    }
+                }
+
+                // 2. Apply Lock (Persistent until PointerUp)
+                if (lockedAxis === 'y') {
+                    const constrainedY = dragStartPoint.y;
+                    driftOffset.y = constrainedY - currentRaw.y;
+                    rawPoint.y = constrainedY;
+                } else if (lockedAxis === 'x') {
+                    const constrainedX = dragStartPoint.x;
+                    driftOffset.x = constrainedX - currentRaw.x;
+                    rawPoint.x = constrainedX;
+                }
+            }
 
             // Phase 2: Input Stabilization (One Euro Filter)
             // DYNAMIC TUNING based on "Natural" (sLevel: 0~10) slider
@@ -331,6 +374,22 @@ export default function WhiteboardCanvas() {
 
             // Use stabilized point for rendering
             const targetPoint = { x: stabilizedX, y: stabilizedY };
+
+            // Update local cursor visual to match targetPoint (Virtual Cursor)
+            // This ensures the cursor visually snaps to the constrained line and follows the offset.
+            if (localCursorRef.current && drawingContainerRef.current) {
+                // Convert World (targetPoint) back to Screen (Client) for CSS Transform
+                // formula: screen = world * scale + pan + rect
+                const rect = containerRef.current!.getBoundingClientRect();
+                const screenX = (targetPoint.x * scaleRef.current) + panOffsetRef.current.x; // Relative to container
+                const screenY = (targetPoint.y * scaleRef.current) + panOffsetRef.current.y;
+
+                // localCursorRef is likely absolute positioned within container or body?
+                // If containerRef relative: transform is (screenX, screenY).
+                // Original logic was e.clientX - rect.left.
+
+                localCursorRef.current.style.transform = `translate(${screenX}px, ${screenY}px)`;
+            }
 
             /* Legacy mid-point logic removed */
 
@@ -427,14 +486,33 @@ export default function WhiteboardCanvas() {
             }
 
             if (isDrawing && prevRawPoint && prevRenderedPoint) {
-                const finalRaw = getLocalPoint(e.clientX, e.clientY);
+                let dest: { x: number; y: number };
 
-                // Phase 2: Stabilize final point
-                const now = Date.now();
-                const stabilizedX = filterX.current.filter(finalRaw.x, now);
-                const stabilizedY = filterY.current.filter(finalRaw.y, now);
+                // Feature: Freeze on Shift Release (Prevent Tail on Up)
+                // If we were locked but Shift is gone, use the LAST RENDERED point.
+                // Do NOT use current mouse position (which has jumped).
+                if (lockedAxis && !e.shiftKey) {
+                    dest = { ...prevRenderedPoint };
+                } else {
+                    const finalRaw = getLocalPoint(e.clientX, e.clientY);
 
-                let dest = { x: stabilizedX, y: stabilizedY };
+                    // Apply Drift if locked (Shift held)
+                    if (lockedAxis) {
+                        finalRaw.x += driftOffset.x;
+                        finalRaw.y += driftOffset.y;
+
+                        // Re-apply lock constraint specifically for the final point
+                        // (Though driftOffset usually handles it, explicit lock is safer)
+                        if (lockedAxis === 'y') finalRaw.y = dragStartPoint!.y;
+                        else if (lockedAxis === 'x') finalRaw.x = dragStartPoint!.x;
+                    }
+
+                    // Phase 2: Stabilize final point
+                    const now = Date.now();
+                    const stabilizedX = filterX.current.filter(finalRaw.x, now);
+                    const stabilizedY = filterY.current.filter(finalRaw.y, now);
+                    dest = { x: stabilizedX, y: stabilizedY };
+                }
 
                 // Handle single click (dot) - if no movement occurred, offset slightly to force render
                 if (currentStroke.length === 0 && dest.x === prevRenderedPoint.x && dest.y === prevRenderedPoint.y) {
@@ -473,26 +551,43 @@ export default function WhiteboardCanvas() {
             prevRenderedPoint = null;
             currentGraphicsRef.current = null;
 
-            if (currentStroke.length > 0) {
+            // FIX: Capture and Clear immediately to prevent Race Conditions without blocking data
+            const strokeToProcess = [...currentStroke];
+            currentStroke = [];
+
+            if (strokeToProcess.length > 0) {
                 try {
-                    let eventsToSend = currentStroke;
+                    let eventsToSend = strokeToProcess;
                     const isMagic = toolRef.current === 'magic-pen';
 
                     if (isMagic) {
                         // **MAGIC PEN LOGIC: "Guess or Die"**
                         const abortMagic = () => {
                             if (activeGraphics) activeGraphics.graphics.clear();
-                            currentStroke = [];
+                            // NO NEED TO CLEAR currentStroke here (it's local now)
                         };
 
                         // 1. Too short? Vanish.
-                        if (currentStroke.length <= 10) {
+                        if (strokeToProcess.length <= 10) {
+                            abortMagic();
+                            return;
+                        }
+
+                        // 1.5. Too small? Vanish (Prevent "Water Droplet" / Noise)
+                        const minX = Math.min(...strokeToProcess.map(p => p.x));
+                        const maxX = Math.max(...strokeToProcess.map(p => p.x));
+                        const minY = Math.min(...strokeToProcess.map(p => p.y));
+                        const maxY = Math.max(...strokeToProcess.map(p => p.y));
+
+                        // Increased threshold to 50px to aggressively filter "Ghost/Bounce" strokes
+                        if ((maxX - minX < 50) && (maxY - minY < 50)) {
+                            console.log('[Magic Pen] Stroke too small (<50px). Vanishing.');
                             abortMagic();
                             return;
                         }
 
                         // 2. Detect Shape
-                        const points = currentStroke.map(p => ({ x: p.x, y: p.y }));
+                        const points = strokeToProcess.map(p => ({ x: p.x, y: p.y }));
                         const { detectShape } = await import('./shapeRecognition');
                         const result = detectShape(points);
 
@@ -511,8 +606,8 @@ export default function WhiteboardCanvas() {
 
                         // B. Prepare Events for History/Server
                         const newEvents: DrawEvent[] = [];
-                        const color = currentStroke[0].color;
-                        const width = currentStroke[0].width;
+                        const color = strokeToProcess[0].color;
+                        const width = strokeToProcess[0].width;
                         const corrected = result.correctedPoints;
 
                         for (let i = 0; i < corrected.length; i++) {
@@ -549,7 +644,7 @@ export default function WhiteboardCanvas() {
                     } else {
                         // **NORMAL PEN LOGIC**
                         // Apply Douglas-Peucker Simplification for optimization
-                        const originalEvents = currentStroke;
+                        const originalEvents = strokeToProcess;
 
                         if (originalEvents.length > 2) {
                             const points: Point[] = [
@@ -590,7 +685,6 @@ export default function WhiteboardCanvas() {
                     console.error('Failed to save stroke:', err);
                 }
             }
-            currentStroke = [];
         };
 
         let resizeObserver: ResizeObserver | null = null;

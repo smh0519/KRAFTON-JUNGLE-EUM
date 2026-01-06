@@ -81,6 +81,10 @@ export default function WorkspaceDetailPage() {
     }
   });
 
+  // Permissions (Hoisted to avoid conditional hooks)
+  const canConnectMedia = usePermission(workspace, "CONNECT_MEDIA");
+  const canSendMessages = usePermission(workspace, "SEND_MESSAGES");
+
   // 통화 입장 핸들러
   const handleJoinCall = useCallback((channelId: string, channelName: string) => {
     setActiveCall({
@@ -161,12 +165,13 @@ export default function WorkspaceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
         <img
           src="/kor_eum_black.png"
           alt="Loading"
           className="w-12 h-12 animate-pulse"
         />
+        <p className="text-black/50 text-sm">Workspace Detail Auth Loading...</p>
       </div>
     );
   }
@@ -179,12 +184,13 @@ export default function WorkspaceDetailPage() {
   // 인증은 되었으나 워크스페이스 로딩 중
   if (isLoadingWorkspace) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white gap-4">
         <img
           src="/kor_eum_black.png"
           alt="Loading"
           className="w-12 h-12 animate-pulse"
         />
+        <p className="text-black/50 text-sm">Workspace Detail Data Loading...</p>
       </div>
     );
   }
@@ -203,14 +209,10 @@ export default function WorkspaceDetailPage() {
     );
   }
 
-  // Permissions (Hoisted to avoid conditional hooks)
-  const canConnectMedia = usePermission(workspace, "CONNECT_MEDIA");
-  const canSendMessages = usePermission(workspace, "SEND_MESSAGES");
-
   const renderContent = () => {
     // 통화방 채널 처리
     if (activeSection.startsWith("call-")) {
-      const canConnectMedia = usePermission(workspace, "CONNECT_MEDIA");
+      // const canConnectMedia = usePermission(workspace, "CONNECT_MEDIA"); // Removed (Hoisted)
 
       // 현재 채널의 참가자 목록 변환 (Identity(string ID) -> ID(number))
       const currentParticipants = (voiceParticipants[activeSection] || []).map(p => ({
@@ -276,7 +278,7 @@ export default function WorkspaceDetailPage() {
           </div>
         );
       case "calls":
-        const canConnectMedia = usePermission(workspace, "CONNECT_MEDIA");
+        // const canConnectMedia = usePermission(workspace, "CONNECT_MEDIA"); // Removed (Hoisted)
         // 전체 통화 채널의 참가자 합계? 아니면 CallsSection이 목록을 보여줄 때 사용?
         // activeSection이 "calls"일 때는 특정 채널이 아닌 대시보드일 수 있음.
         // 하지만 CallsSection은 channelId가 없으면 빈 화면을 보여줄 수 있음.
@@ -315,90 +317,96 @@ export default function WorkspaceDetailPage() {
   };
 
   const sectionInfo = getSectionInfo();
+  // 통화 중이면서 해당 채널을 보고 있는지 확인
+  const isJoinedCallView = activeSection.startsWith("call-") &&
+    activeCall?.channelId === activeSection;
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar
-        workspace={workspace}
-        activeSection={activeSection}
-        onSectionChange={setActiveSection}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        onUpdateWorkspace={(name) => setWorkspace((prev) => (prev ? { ...prev, name } : null))}
-        activeCall={activeCall}
-        onJoinCall={handleJoinCall}
-        onLeaveCall={handleLeaveCall}
-      />
+      {/* Sidebar - Hide only when joined in the active call view */}
+      {!isJoinedCallView && (
+        <Sidebar
+          workspace={workspace}
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onUpdateWorkspace={(name) => setWorkspace((prev) => (prev ? { ...prev, name } : null))}
+          activeCall={activeCall}
+          onJoinCall={handleJoinCall}
+          onLeaveCall={handleLeaveCall}
+        />
+      )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-white">
-        {/* Notion-style Top Bar */}
-        <header className="h-11 border-b border-black/[0.06] flex items-center justify-between px-4 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-          {/* Left: Breadcrumb */}
-          <div className="flex items-center gap-1 text-sm">
-            <button
-              onClick={() => router.push("/workspace")}
-              className="flex items-center gap-1 px-1.5 py-1 rounded text-black/40 hover:text-black/70 hover:bg-black/[0.04] transition-all"
-            >
-              <ChevronLeft size={14} />
-              <span className="text-xs">워크스페이스</span>
-            </button>
-            
-            <span className="text-black/20">/</span>
-            
-            <div className="flex items-center gap-1.5 px-1.5 py-1 text-black/70">
-              <span className="text-black/40">{sectionInfo.icon}</span>
-              <span className="font-medium">{sectionInfo.title}</span>
-            </div>
-          </div>
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          {/* Notion-style Top Bar */}
+          {!isJoinedCallView && (
+            <header className="h-11 border-b border-black/[0.06] flex items-center justify-between px-4 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+              {/* Left: Breadcrumb */}
+              <div className="flex items-center gap-1 text-sm">
+                <button
+                  onClick={() => router.push("/workspace")}
+                  className="flex items-center gap-1 px-1.5 py-1 rounded text-black/40 hover:text-black/70 hover:bg-black/[0.04] transition-all"
+                >
+                  <ChevronLeft size={14} />
+                  <span className="text-xs">워크스페이스</span>
+                </button>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2">
-            <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
+                <span className="text-black/20">/</span>
 
-            {/* Profile */}
-            <div className="relative">
-              <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2 p-1 rounded-md hover:bg-black/[0.04] transition-all"
-              >
-                <div className="relative">
-                  {user.profileImg ? (
-                    <img
-                      src={user.profileImg}
-                      alt={user.nickname}
-                      className="w-7 h-7 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-black/10 flex items-center justify-center">
-                      <span className="text-xs font-medium text-black/60">
-                        {user.nickname.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  <StatusIndicator
-                    status={presenceMap[user.id]?.status || user.default_status || "online"}
-                    size="sm"
-                    className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white"
-                  />
+                <div className="flex items-center gap-1.5 px-1.5 py-1 text-black/70">
+                  <span className="text-black/40">{sectionInfo.icon}</span>
+                  <span className="font-medium">{sectionInfo.title}</span>
                 </div>
-              </button>
+              </div>
 
-              {showProfileMenu && (
-                <GlobalUserProfileMenu
-                  onClose={() => setShowProfileMenu(false)}
-                  onEditProfile={() => {
-                    setShowProfileMenu(false);
-                    setIsEditProfileModalOpen(true);
-                  }}
-                  onLogout={handleLogout}
-                />
-              )}
-            </div>
-          </div>
-        </header>
+              {/* Right: Actions */}
+              <div className="flex items-center gap-2">
+                <NotificationDropdown onInvitationAccepted={() => router.push("/workspace")} />
 
+                {/* Profile */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                    className="flex items-center gap-2 p-1 rounded-md hover:bg-black/[0.04] transition-all"
+                  >
+                    <div className="relative">
+                      {user.profileImg ? (
+                        <img
+                          src={user.profileImg}
+                          alt={user.nickname}
+                          className="w-7 h-7 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-black/10 flex items-center justify-center">
+                          <span className="text-xs font-medium text-black/60">
+                            {user.nickname.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <StatusIndicator
+                        status={presenceMap[user.id]?.status || user.default_status || "online"}
+                        size="sm"
+                        className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white"
+                      />
+                    </div>
+                  </button>
+
+                  {showProfileMenu && (
+                    <GlobalUserProfileMenu
+                      onClose={() => setShowProfileMenu(false)}
+                      onEditProfile={() => {
+                        setShowProfileMenu(false);
+                        setIsEditProfileModalOpen(true);
+                      }}
+                      onLogout={handleLogout}
+                    />
+                  )}
+                </div>
+              </div>
+            </header>
+          )}
         {/* Content Area */}
         <main className="flex-1 overflow-hidden bg-stone-50/50">
           {renderContent()}
@@ -406,13 +414,15 @@ export default function WorkspaceDetailPage() {
       </div>
 
       {/* Edit Profile Modal */}
-      {isEditProfileModalOpen && user && (
-        <EditProfileModal
-          user={user}
-          onClose={() => setIsEditProfileModalOpen(false)}
-          onUpdate={handleUpdateProfile}
-        />
-      )}
-    </div>
+      {
+        isEditProfileModalOpen && user && (
+          <EditProfileModal
+            user={user}
+            onClose={() => setIsEditProfileModalOpen(false)}
+            onUpdate={handleUpdateProfile}
+          />
+        )
+      }
+    </div >
   );
 }

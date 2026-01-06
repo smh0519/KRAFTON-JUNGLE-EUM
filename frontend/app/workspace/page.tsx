@@ -350,6 +350,42 @@ export default function WorkspacePage() {
               <div className="lg:hidden mb-10">
                 <p className="text-white/50 text-xs tracking-wide uppercase mb-2">Welcome back</p>
                 <h1 className="text-3xl font-bold tracking-tight text-white">{user.nickname}</h1>
+            {/* Loading State */}
+            {isLoadingWorkspaces && (
+              <div className="flex flex-col items-center justify-center py-20 gap-4">
+                <div className="w-8 h-8 border-2 border-black/20 border-t-black/60 rounded-full animate-spin" />
+                <p className="text-black/50 text-sm">Workspace Data Loading...</p>
+              </div>
+            )}
+
+            {/* Empty State - 워크스페이스가 없을 때 */}
+            {!isLoadingWorkspaces && workspaces.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20">
+                <img
+                  src="/logo_black.png"
+                  alt=""
+                  className="w-20 h-20 object-contain opacity-10 mb-6"
+                />
+                <p className="text-black/40 mb-8">아직 워크스페이스가 없습니다</p>
+                <button
+                  onClick={handleOpenModal}
+                  className="group flex items-center gap-3 px-8 py-3 bg-black text-white rounded-full hover:bg-black/80 transition-all duration-300"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  <span className="font-medium">새 워크스페이스 만들기</span>
+                </button>
               </div>
 
               {/* Search & Filter Bar */}

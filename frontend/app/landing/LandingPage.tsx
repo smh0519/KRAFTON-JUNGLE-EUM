@@ -33,7 +33,15 @@ export function LandingPage() {
     console.log("[LandingPage] Effect. isLoading:", isLoading, "isAuthenticated:", isAuthenticated);
     if (!isLoading && isAuthenticated) {
       console.log("[LandingPage] Redirecting to /workspace because authenticated");
-      router.push("/workspace");
+      router.replace("/workspace");
+
+      // Fallback: Force hard navigation if router gets stuck
+      const timeout = setTimeout(() => {
+        console.warn("[LandingPage] Router fallback triggered");
+        window.location.href = "/workspace";
+      }, 1000);
+
+      return () => clearTimeout(timeout);
     }
   }, [isLoading, isAuthenticated, router]);
 
@@ -64,18 +72,21 @@ export function LandingPage() {
   const { currentStep: notesStep } = useMeetingNotesAnimation(currentSlide === 5);
 
   const handleLoginSuccess = () => {
-    router.push("/workspace");
+    router.replace("/workspace");
   };
 
   // 로딩 중이거나 인증 확인 중이면 로딩 화면 표시
   if (isLoading || !showContent) {
     return (
-      <div className="h-screen flex items-center justify-center bg-white">
+      <div className="h-screen flex flex-col items-center justify-center bg-white gap-4">
         <img
           src="/kor_eum_black.png"
           alt="Loading"
           className="w-12 h-12 animate-pulse"
         />
+        <p className="text-black/50 text-sm">
+          {isLoading ? "Checking session..." : "Redirecting to workspace..."}
+        </p>
       </div>
     );
   }

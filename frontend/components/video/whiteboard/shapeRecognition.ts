@@ -150,7 +150,7 @@ export const detectShape = (points: Point[]): ShapeResult => {
     // Decision Logic with Relaxed Thresholds
 
     // 1. Rectangle (Box-like)
-    // Relaxed from 0.90 to 0.80 for sloppy rects
+    // TUNING: Adjusted to 0.80 (Slightly easier than 0.82)
     if (boxRatio > 0.80) {
         return {
             type: 'rectangle',
@@ -158,18 +158,17 @@ export const detectShape = (points: Point[]): ShapeResult => {
             correctedPoints: generatePerfectRectangle(box)
         };
     }
-    // 2. Circle/Ellipse (Rounded)
-    // Relaxed from 0.70-0.85 to 0.60-0.80
-    else if (boxRatio > 0.60) {
+    // 2. Circle/Ellipse (Rounded: pi/4 ~= 0.785)
+    // TUNING: Adjusted to 0.66 (Slightly easier than 0.67)
+    else if (boxRatio > 0.66) {
         return {
             type: 'circle',
             score: boxRatio,
             correctedPoints: generatePerfectCircle(box)
         };
     }
-    // 3. Triangle (Pointy)
-    // Typical triangle fills half the box
-    else if (boxRatio > 0.35 && boxRatio <= 0.60) {
+    // 3. Triangle (Pointy: 0.5)
+    else if (boxRatio > 0.35 && boxRatio <= 0.66) {
         // Generate Triangle (Top-center, Bottom-right, Bottom-left)
         // Note: Simple "Tent" shape for now.
         const trianglePoints = [
